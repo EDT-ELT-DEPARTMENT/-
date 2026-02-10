@@ -146,7 +146,7 @@ with st.sidebar:
     st.markdown(f"<p style='text-align:center; color:maroon;'><b>الأستاذ المشرف:<br>ميلوى فريد</b></p>", unsafe_allow_html=True)
 
 # --- ZONE PRINCIPALE ---
-st.markdown("<h1>🎓 منصة بَرَاعِم لُغَتي</h1>", unsafe_allow_html=True)
+st.markdown("<h1>🎓 منصة قواعد بَرَاعِم لُغَتي</h1>", unsafe_allow_html=True)
 st.markdown("<h3>مشروع شركة ناشئة - الطالبة: عبو ماجدة</h3>", unsafe_allow_html=True)
 
 # --- ركن الفيديو التعليمي (NOUVEAU) ---
@@ -208,3 +208,4 @@ else:
 # Pied de page
 st.markdown("---")
 st.caption("© 2026 جميع الحقوق محفوظة لمنصة بَرَاعِم لُغَتي - كلية الآداب والفنون - UDL-SBA")
+
