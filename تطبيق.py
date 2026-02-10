@@ -1,15 +1,15 @@
 import streamlit as st
 
-# --- إعدادات الصفحة ---
+# --- CONFIGURATION DE LA PAGE ---
 st.set_page_config(
     page_title="بَرَاعِم لُغَتي",
     page_icon="🎓",
     layout="centered"
 )
 
-# --- وظيفة النطق الصوتي بالعربية (JavaScript) ---
+# --- FONCTION DE SYNTHÈSE VOCALE (ARABE) ---
 def speak_arabic(text):
-    """وظيفة تجعل المتصفح ينطق النص العربي"""
+    """Utilise l'API Web Speech du navigateur pour parler en arabe"""
     js_code = f"""
         <script>
         var msg = new SpeechSynthesisUtterance();
@@ -21,7 +21,7 @@ def speak_arabic(text):
     """
     st.components.v1.html(js_code, height=0)
 
-# --- تنسيق CSS (نفس الواجهة الكبيرة والألوان) ---
+# --- STYLE CSS (Interface large, Couleurs Bordeaux et Or) ---
 st.markdown("""
     <style>
     @import url('https://fonts.googleapis.com/css2?family=Amiri:wght@400;700&family=Cairo:wght@400;700&display=swap');
@@ -34,56 +34,67 @@ st.markdown("""
     
     .main { background-color: var(--bg-color); }
     
-    h1 { color: var(--bordeaux); font-family: 'Amiri', serif; font-size: 50px !important; text-align: center; }
-    h3 { font-family: 'Cairo', sans-serif; font-size: 30px !important; color: #333; text-align: center; }
+    /* Titres principaux */
+    h1 { color: var(--bordeaux); font-family: 'Amiri', serif; font-size: 55px !important; text-align: center; margin-bottom: 0px; }
+    h3 { font-family: 'Cairo', sans-serif; font-size: 28px !important; color: #333; text-align: center; margin-top: 0px; }
+    h2 { color: var(--bordeaux); font-family: 'Cairo', sans-serif; font-size: 32px !important; border-bottom: 3px solid var(--gold); padding-bottom: 10px; }
 
+    /* Boîte du mot à deviner (Très grande police) */
     .word-box { 
-        font-size: 100px !important; 
+        font-size: 110px !important; 
         text-align: center; 
-        padding: 40px;
+        padding: 45px;
         background: white; 
-        border-radius: 25px; 
-        box-shadow: 0 8px 20px rgba(0,0,0,0.1); 
-        margin: 30px 0;
-        border: 2px solid var(--gold);
+        border-radius: 30px; 
+        box-shadow: 0 10px 25px rgba(0,0,0,0.1); 
+        margin: 35px 0;
+        border: 3px solid var(--gold);
         font-family: 'Amiri', serif;
         font-weight: bold;
     }
 
+    /* Boutons de réponse (Style Bordeaux & Or) */
     .stButton>button { 
         background-color: var(--bordeaux); 
         color: white !important; 
-        font-size: 45px !important; 
+        font-size: 50px !important; 
         font-family: 'Amiri', serif !important;
-        border-radius: 15px; 
+        border-radius: 20px; 
         width: 100%;
-        height: 100px;
-        border: 3px solid var(--gold);
+        height: 110px;
+        border: 4px solid var(--gold);
+        transition: 0.4s;
     }
     .stButton>button:hover { 
         background-color: var(--gold); 
         color: black !important; 
+        transform: scale(1.05); 
     }
 
-    .rule-text {
-        font-size: 24px !important;
-        font-family: 'Cairo', sans-serif;
-        text-align: right;
-        background: #fff;
-        padding: 20px;
+    /* Style du Guide des Règles dans la Sidebar */
+    .rule-card {
+        background-color: white;
+        padding: 15px;
         border-radius: 15px;
-        border-right: 5px solid var(--gold);
+        border-right: 8px solid var(--gold);
+        margin-bottom: 15px;
+        font-family: 'Cairo', sans-serif;
+        font-size: 18px;
+        box-shadow: 0 4px 6px rgba(0,0,0,0.05);
+        text-align: right;
+        direction: rtl;
     }
+    .rule-title { color: var(--bordeaux); font-weight: bold; font-size: 22px; margin-bottom: 5px; }
     </style>
     """, unsafe_allow_html=True)
 
-# --- تهيئة المتغيرات ---
+# --- INITIALISATION DES VARIABLES DE SESSION ---
 if 'score' not in st.session_state:
     st.session_state.score = 0
 if 'step' not in st.session_state:
     st.session_state.step = 0
 
-# --- قاعدة البيانات (10 تمارين) ---
+# --- BASE DE DONNÉES DES EXERCICES (10 défis) ---
 defis = [
     {"mot": "سُـ?ـال", "options": ["ؤ", "ئ", "أ"], "correct": "ؤ", "exp": "الضمة أقوى من الفتحة"},
     {"mot": "بِـ?ـر", "options": ["ئ", "ؤ", "أ"], "correct": "ئ", "exp": "الكسرة هي الأقوى دائماً"},
@@ -97,46 +108,80 @@ defis = [
     {"mot": "بِيـ?َـة", "options": ["ئ", "أ", "ؤ"], "correct": "ئ", "exp": "بعد الياء الساكنة ترسم على النبرة"}
 ]
 
-# --- الواجهة ---
-st.markdown("<h1>🎓 منصة بَرَاعِم لُغَتي</h1>", unsafe_allow_html=True)
-st.markdown("<h3>مشروع شركة ناشئة - الطالبة: عبو ماجدة</h3>", unsafe_allow_html=True)
-
+# --- AFFICHAGE DU GUIDE DES RÈGLES (SIDEBAR) ---
 with st.sidebar:
-    st.markdown("<h2 style='text-align:center;'>📚 دليل القواعد</h2>", unsafe_allow_html=True)
-    st.markdown('<div class="rule-text"><b>سلم قوة الحركات:</b><br>1️⃣ الكسرة (ئ)<br>2️⃣ الضمة (ؤ)<br>3️⃣ الفتحة (أ)<br>4️⃣ السكون</div>', unsafe_allow_html=True)
+    st.markdown("<h2>📚 دليل القواعد</h2>", unsafe_allow_html=True)
+    
+    st.markdown("""
+    <div class="rule-card">
+        <div class="rule-title">⚖️ قاعدة الميزان</div>
+        لرسم الهمزة المتوسطة، نقارن بين <b>حركتها</b> و <b>حركة الحرف الذي قبلها</b>.
+    </div>
+    
+    <div class="rule-card">
+        <div class="rule-title">🥇 سلم القوة</div>
+        1. <b>الكسرة:</b> الأقوى (تناسبها الياء ئ)<br>
+        2. <b>الضمة:</b> (تناسبها الواو ؤ)<br>
+        3. <b>الفتحة:</b> (تناسبها الألف أ)<br>
+        4. <b>السكون:</b> الأضعف دائمًا.
+    </div>
+
+    <div class="rule-card">
+        <div class="rule-title">💡 أمثلة مساعدة</div>
+        • ضمة > فتحة = <b>ؤ</b> (سُؤَال)<br>
+        • كسرة > سكون = <b>ئ</b> (بِئْر)<br>
+        • فتحة > سكون = <b>أ</b> (رَأْس)
+    </div>
+    """, unsafe_allow_html=True)
+    
     st.write("---")
     st.metric("نقاطك الحالية 🌟", st.session_state.score)
     st.markdown(f"<p style='text-align:center; color:maroon;'><b>الأستاذ المشرف:<br>ميلوى فريد</b></p>", unsafe_allow_html=True)
 
-# --- منطقة التحدي ---
+# --- ZONE PRINCIPALE ---
+st.markdown("<h1>🎓 منصة بَرَاعِم لُغَتي</h1>", unsafe_allow_html=True)
+st.markdown("<h3>مشروع شركة ناشئة - الطالبة: عبو ماجدة</h3>", unsafe_allow_html=True)
+
+# Barre de progression
 prog = st.session_state.step / len(defis)
 st.progress(prog)
+st.write(f"📊 التمرين رقم {st.session_state.step + 1} من {len(defis)}")
 
 if st.session_state.step < len(defis):
     actuel = defis[st.session_state.step]
+    
+    # Affichage du mot avec le point d'interrogation stylisé
     st.markdown(f'<div class="word-box">{actuel["mot"].replace("?", "<span style=\"color:var(--gold)\">؟</span>")}</div>', unsafe_allow_html=True)
     
+    st.info("💡 انظر إلى حركة الهمزة وما قبلها، ثم اختر الكرسي الصحيح من الأسفل!")
+
+    # Boutons de réponse
     cols = st.columns(3)
     for i, opt in enumerate(actuel["options"]):
         if cols[i].button(opt, key=f"btn_{st.session_state.step}_{opt}"):
             if opt == actuel["correct"]:
                 st.balloons()
-                speak_arabic("إجابة صحيحة، أحسنتِ") # نطق بالعربي
+                speak_arabic("إجابة صحيحة، أحسنتِ")
                 st.success(f"✅ مذهل! {actuel['exp']}")
                 st.session_state.score += 10
                 st.session_state.step += 1
                 st.rerun()
             else:
-                speak_arabic("إجابة خاطئة، حاولي مرة أخرى") # نطق بالعربي
-                st.error("❌ حاولي مرة أخرى!")
+                speak_arabic("إجابة خاطئة، حاولي مرة أخرى")
+                st.error("❌ إجابة غير صحيحة. راجعي دليل القواعد في الجانب وحاولي مجدداً!")
+
 else:
+    # Fin du parcours
     st.balloons()
-    speak_arabic("تهانينا، لقد أكملت التحدي بنجاح")
-    st.markdown('<div class="word-box" style="font-size:40px !important;">🎊 أحسنتِ يا بطلة!</div>', unsafe_allow_html=True)
-    if st.button("🔄 إعادة التحدي"):
+    speak_arabic("مبروك يا بطلة، لقد أكملت التحدي بنجاح")
+    st.markdown('<div class="word-box" style="font-size:45px !important;">🎊 أحسنتِ يا بطلة!<br>لقد أتقنتِ قواعد الهمزة</div>', unsafe_allow_html=True)
+    st.metric("مجموع نقاطك النهائي", f"{st.session_state.score} / 100")
+    
+    if st.button("🔄 إعادة التحدي من جديد"):
         st.session_state.score = 0
         st.session_state.step = 0
         st.rerun()
 
+# Pied de page
 st.markdown("---")
-st.caption("© 2026 جميع الحقوق محفوظة لمنصة بَرَاعِم لُغَتي - جامعة سيدي بلعباس")
+st.caption("© 2026 جميع الحقوق محفوظة لمنصة بَرَاعِم لُغَتي - كلية الآداب والفنون - UDL-SBA")
