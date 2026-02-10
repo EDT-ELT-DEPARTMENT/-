@@ -1,45 +1,62 @@
 import streamlit as st
 
-# Configuration de l'interface aux couleurs de la Faculté (Bordeaux & Or)
-st.set_page_config(page_title="بَرَاعِم لُغَتي", page_icon="🎓")
+# Configuration de la page
+st.set_page_config(page_title="بَرَاعِم لُغَتي", layout="centered")
 
+# CSS pour garder votre style visuel (Bordeaux et Or)
 st.markdown("""
     <style>
+    :root {
+        --bordeaux: #800000;
+        --gold: #d4af37;
+    }
     .main { background-color: #fdfaf6; }
-    h1 { color: #800000; text-align: center; }
-    .stButton>button { background-color: #800000; color: white; border-radius: 10px; height: 3em; font-size: 20px; }
+    h1 { color: var(--bordeaux); text-align: center; font-family: 'Amiri', serif; }
+    .stButton>button { 
+        background-color: var(--bordeaux); color: white; 
+        font-size: 24px; border-radius: 12px; width: 100%;
+        border: 2px solid var(--gold); transition: 0.3s;
+    }
+    .stButton>button:hover { background-color: var(--gold); color: black; }
+    .word-box { 
+        font-size: 60px; text-align: center; padding: 20px;
+        background: white; border-radius: 15px; 
+        box-shadow: 0 4px 15px rgba(0,0,0,0.1); margin: 20px 0;
+    }
     </style>
     """, unsafe_allow_html=True)
 
+# En-tête de la Startup
 st.title("🎓 منصة بَرَاعِم لُغَتي")
-st.write("### مشروع شركة ناشئة - قسم اللغة العربية - UDL-SBA")
-st.divider()
+st.markdown("<p style='text-align:center;'>مشروع شركة ناشئة - كلية الآداب والفنون - UDL-SBA</p>", unsafe_allow_html=True)
 
-# Logique de l'exercice sur la Hamza
-st.write("#### تحدي الهمزة المتوسطة: اختر الرسم الصحيح للكلمة")
+# Initialisation du score
+if 'score' not in st.session_state:
+    st.session_state.score = 0
 
-col1, col2 = st.columns([2, 1])
+# Contenu pédagogique (Niveau 3 & 4)
+st.info("تحدي مبارزة الحركات 🤺: اختر الكرسي المناسب للهزة")
 
-with col1:
-    mot_a_completer = "بِـ...ـر"
-    st.info(f"كيف نكتب الكلمة: **{mot_a_completer}** ؟")
+# Affichage du mot
+st.markdown('<div class="word-box">سُـ<span style="color:#d4af37">؟</span>ال</div>', unsafe_allow_html=True)
+
+# Options de réponse
+cols = st.columns(3)
+
+if cols[0].button("ؤ"):
+    st.success("✅ أحسنت! الضمة أقوى من الفتحة.")
+    st.balloons()
+    st.session_state.score += 10
     
-    choix = st.columns(3)
-    if choix[0].button("أ"):
-        st.error("❌ خطأ! الفتحة أضعف من الكسرة.")
-    if choix[1].button("ؤ"):
-        st.error("❌ خطأ! الضمة أضعف من الكسرة.")
-    if choix[2].button("ئ"):
-        st.success("✅ ممتاز! الكسرة هي أقوى الحركات وتناسبها النبرة.")
-        st.balloons()
+if cols[1].button("ئ"):
+    st.error("❌ خطأ! الكسرة غير موجودة هنا.")
 
-with col2:
-    st.metric("النقاط", "10")
-    st.write("**القاعدة:**")
-    st.caption("الكسرة ⬅️ ئ")
-    st.caption("الضمة ⬅️ ؤ")
-    st.caption("الفتحة ⬅️ أ")
+if cols[2].button("أ"):
+    st.error("❌ خطأ! الفتحة أضعف من الضمة.")
 
+# Tableau de bord
+st.sidebar.header("📊 لوحة التحكم")
+st.sidebar.metric("النقاط المستحقة", st.session_state.score)
 st.sidebar.write("---")
-st.sidebar.write("إشراف: الطالبة عبو ماجدة")
-
+st.sidebar.write("**إعداد:** الأستاذ ميلوعة فريد")
+st.sidebar.caption("© 2026 جميع الحقوق محفوظة")
