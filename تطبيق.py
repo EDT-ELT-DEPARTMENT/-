@@ -110,7 +110,7 @@ defis = [
 
 # --- AFFICHAGE DU GUIDE DES RÈGLES (SIDEBAR) ---
 with st.sidebar:
-    st.markdown("<h2>📚 دليل القواعد</h2>", unsafe_allow_html=True)
+    st.markdown("<h2>📚 دليل القواعد للسنة الثالثة ابتدائي حسب البرنامج الرسمي</h2>", unsafe_allow_html=True)
     
     st.markdown("""
     <div class="rule-card">
@@ -185,3 +185,4 @@ else:
 # Pied de page
 st.markdown("---")
 st.caption("© 2026 جميع الحقوق محفوظة لمنصة بَرَاعِم لُغَتي - كلية الآداب والفنون - UDL-SBA")
+
