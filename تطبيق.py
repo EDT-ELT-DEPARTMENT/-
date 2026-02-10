@@ -85,6 +85,20 @@ st.markdown("""
         direction: rtl;
     }
     .rule-title { color: var(--bordeaux); font-weight: bold; font-size: 22px; margin-bottom: 5px; }
+
+    /* Style pour le lien vidéo direct */
+    .video-link {
+        display: inline-block;
+        padding: 10px 20px;
+        background-color: var(--bordeaux);
+        color: white !important;
+        text-decoration: none;
+        border-radius: 10px;
+        font-family: 'Cairo', sans-serif;
+        font-weight: bold;
+        margin-top: 10px;
+        border: 2px solid var(--gold);
+    }
     </style>
     """, unsafe_allow_html=True)
 
@@ -104,13 +118,13 @@ defis = [
     {"mot": "سَـ?َـلَ", "options": ["أ", "ئ", "ؤ"], "correct": "أ", "exp": "فتحة مع فتحة تناسب الألف"},
     {"mot": "رِ?َة", "options": ["ئ", "ؤ", "أ"], "correct": "ئ", "exp": "الكسرة أقوى من الفتحة"},
     {"mot": "فَـ?ْس", "options": ["أ", "ؤ", "ئ"], "correct": "أ", "exp": "الفتحة أقوى من السكون"},
-    {"mot": "مُـ?َـذِّن", "options": ["ؤ", "أ", "ئ"], "correct": "ؤ", "exp": "الضمة أقوى من الفتحة"},
+    {"mot": "مُـ?َـذِّن", "options": ["ؤ", "أ", "ئ"], "correct": "ؤ", "exp": "الضمة أقوى من الفتحة"},
     {"mot": "بِيـ?َـة", "options": ["ئ", "أ", "ؤ"], "correct": "ئ", "exp": "بعد الياء الساكنة ترسم على النبرة"}
 ]
 
 # --- AFFICHAGE DU GUIDE DES RÈGLES (SIDEBAR) ---
 with st.sidebar:
-    st.markdown("<h2>📚 دليل القواعد للسنة الثالثة ابتدائي حسب البرنامج الرسمي</h2>", unsafe_allow_html=True)
+    st.markdown("<h2>📚 دليل القواعد</h2>", unsafe_allow_html=True)
     
     st.markdown("""
     <div class="rule-card">
@@ -125,13 +139,6 @@ with st.sidebar:
         3. <b>الفتحة:</b> (تناسبها الألف أ)<br>
         4. <b>السكون:</b> الأضعف دائمًا.
     </div>
-
-    <div class="rule-card">
-        <div class="rule-title">💡 أمثلة مساعدة</div>
-        • ضمة > فتحة = <b>ؤ</b> (سُؤَال)<br>
-        • كسرة > سكون = <b>ئ</b> (بِئْر)<br>
-        • فتحة > سكون = <b>أ</b> (رَأْس)
-    </div>
     """, unsafe_allow_html=True)
     
     st.write("---")
@@ -142,6 +149,22 @@ with st.sidebar:
 st.markdown("<h1>🎓 منصة بَرَاعِم لُغَتي</h1>", unsafe_allow_html=True)
 st.markdown("<h3>مشروع شركة ناشئة - الطالبة: عبو ماجدة</h3>", unsafe_allow_html=True)
 
+# --- ركن الفيديو التعليمي (NOUVEAU) ---
+with st.expander("📽️ ركن المشاهدة: تعلم قاعدة الهمزة بالفيديو"):
+    st.write("شاهد هذا الفيديو الممتع لفهم صراع الحركات وقوة الهمزة:")
+    # عرض الفيديو مباشرة في الصفحة
+    st.video("https://www.youtube.com/watch?v=R9P_O1A6A_I")
+    # وضع رابط مباشر للضغط عليه
+    st.markdown("""
+        <div style="text-align: center;">
+            <a href="https://www.youtube.com/watch?v=R9P_O1A6A_I" target="_blank" class="video-link">
+                🔗 اضغط هنا لفتح الفيديو في صفحة جديدة
+            </a>
+        </div>
+    """, unsafe_allow_html=True)
+
+st.write("---")
+
 # Barre de progression
 prog = st.session_state.step / len(defis)
 st.progress(prog)
@@ -150,10 +173,10 @@ st.write(f"📊 التمرين رقم {st.session_state.step + 1} من {len(defi
 if st.session_state.step < len(defis):
     actuel = defis[st.session_state.step]
     
-    # Affichage du mot avec le point d'interrogation stylisé
+    # Affichage du mot
     st.markdown(f'<div class="word-box">{actuel["mot"].replace("?", "<span style=\"color:var(--gold)\">؟</span>")}</div>', unsafe_allow_html=True)
     
-    st.info("💡 انظر إلى حركة الهمزة وما قبلها، ثم اختر الكرسي الصحيح من الأسفل!")
+    st.info("💡 انظر إلى حركة الهمزة وما قبلها، ثم اختر الكرسي الصحيح!")
 
     # Boutons de réponse
     cols = st.columns(3)
@@ -168,7 +191,7 @@ if st.session_state.step < len(defis):
                 st.rerun()
             else:
                 speak_arabic("إجابة خاطئة، حاولي مرة أخرى")
-                st.error("❌ إجابة غير صحيحة. راجعي دليل القواعد في الجانب وحاولي مجدداً!")
+                st.error("❌ إجابة غير صحيحة. راجعي دليل القواعد وحاولي مجدداً!")
 
 else:
     # Fin du parcours
@@ -185,4 +208,3 @@ else:
 # Pied de page
 st.markdown("---")
 st.caption("© 2026 جميع الحقوق محفوظة لمنصة بَرَاعِم لُغَتي - كلية الآداب والفنون - UDL-SBA")
-
