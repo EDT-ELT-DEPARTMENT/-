@@ -1,28 +1,27 @@
 import streamlit as st
-import base64
 
-# --- CONFIGURATION DE LA PAGE ---
+# --- إعدادات الصفحة ---
 st.set_page_config(
     page_title="بَرَاعِم لُغَتي",
     page_icon="🎓",
     layout="centered"
 )
 
-# --- FONCTION POUR L'EFFET SONORE ---
-def play_sound(url):
-    """Fonction pour injecter un son via HTML/JS"""
-    sound_html = f"""
-        <audio autoplay>
-            <source src="{url}" type="audio/mp3">
-        </audio>
+# --- وظيفة النطق الصوتي بالعربية (JavaScript) ---
+def speak_arabic(text):
+    """وظيفة تجعل المتصفح ينطق النص العربي"""
+    js_code = f"""
+        <script>
+        var msg = new SpeechSynthesisUtterance();
+        msg.text = "{text}";
+        msg.lang = "ar-SA";
+        msg.rate = 0.9; 
+        window.speechSynthesis.speak(msg);
+        </script>
     """
-    st.components.v1.html(sound_html, height=0)
+    st.components.v1.html(js_code, height=0)
 
-# URL d'un son de succès (libre de droits)
-SUCCESS_SOUND = "https://www.soundjay.com/misc/sounds/bell-ringing-05.mp3"
-ERROR_SOUND = "https://www.soundjay.com/buttons/sounds/button-10.mp3"
-
-# --- STYLE CSS (Police large et Couleurs Académiques) ---
+# --- تنسيق CSS (نفس الواجهة الكبيرة والألوان) ---
 st.markdown("""
     <style>
     @import url('https://fonts.googleapis.com/css2?family=Amiri:wght@400;700&family=Cairo:wght@400;700&display=swap');
@@ -36,7 +35,6 @@ st.markdown("""
     .main { background-color: var(--bg-color); }
     
     h1 { color: var(--bordeaux); font-family: 'Amiri', serif; font-size: 50px !important; text-align: center; }
-    h2 { color: var(--bordeaux); font-family: 'Cairo', sans-serif; font-size: 35px !important; border-bottom: 2px solid var(--gold); }
     h3 { font-family: 'Cairo', sans-serif; font-size: 30px !important; color: #333; text-align: center; }
 
     .word-box { 
@@ -61,17 +59,14 @@ st.markdown("""
         width: 100%;
         height: 100px;
         border: 3px solid var(--gold);
-        transition: 0.3s;
     }
     .stButton>button:hover { 
         background-color: var(--gold); 
         color: black !important; 
-        transform: scale(1.05); 
     }
 
     .rule-text {
         font-size: 24px !important;
-        line-height: 1.6;
         font-family: 'Cairo', sans-serif;
         text-align: right;
         background: #fff;
@@ -82,13 +77,13 @@ st.markdown("""
     </style>
     """, unsafe_allow_html=True)
 
-# --- INITIALISATION DES VARIABLES ---
+# --- تهيئة المتغيرات ---
 if 'score' not in st.session_state:
     st.session_state.score = 0
 if 'step' not in st.session_state:
     st.session_state.step = 0
 
-# --- BASE DE DONNÉES DES DÉFIS ---
+# --- قاعدة البيانات (10 تمارين) ---
 defis = [
     {"mot": "سُـ?ـال", "options": ["ؤ", "ئ", "أ"], "correct": "ؤ", "exp": "الضمة أقوى من الفتحة"},
     {"mot": "بِـ?ـر", "options": ["ئ", "ؤ", "أ"], "correct": "ئ", "exp": "الكسرة هي الأقوى دائماً"},
@@ -102,68 +97,46 @@ defis = [
     {"mot": "بِيـ?َـة", "options": ["ئ", "أ", "ؤ"], "correct": "ئ", "exp": "بعد الياء الساكنة ترسم على النبرة"}
 ]
 
-# --- INTERFACE PRINCIPALE ---
-
+# --- الواجهة ---
 st.markdown("<h1>🎓 منصة بَرَاعِم لُغَتي</h1>", unsafe_allow_html=True)
 st.markdown("<h3>مشروع شركة ناشئة - الطالبة: عبو ماجدة</h3>", unsafe_allow_html=True)
 
-# --- SECTION DES RÈGLES DANS LA SIDEBAR ---
 with st.sidebar:
     st.markdown("<h2 style='text-align:center;'>📚 دليل القواعد</h2>", unsafe_allow_html=True)
-    st.markdown("""
-    <div class="rule-text">
-    <b>سلم قوة الحركات:</b><br>
-    1️⃣ <b>الكسرة:</b> (ئ)<br>
-    2️⃣ <b>الضمة:</b> (ؤ)<br>
-    3️⃣ <b>الفتحة:</b> (أ)<br>
-    4️⃣ <b>السكون:</b> الأضعف
-    </div>
-    """, unsafe_allow_html=True)
+    st.markdown('<div class="rule-text"><b>سلم قوة الحركات:</b><br>1️⃣ الكسرة (ئ)<br>2️⃣ الضمة (ؤ)<br>3️⃣ الفتحة (أ)<br>4️⃣ السكون</div>', unsafe_allow_html=True)
     st.write("---")
     st.metric("نقاطك الحالية 🌟", st.session_state.score)
     st.markdown(f"<p style='text-align:center; color:maroon;'><b>الأستاذ المشرف:<br>ميلوى فريد</b></p>", unsafe_allow_html=True)
 
-# --- CONTENU DU JEU ---
-tab1, tab2 = st.tabs(["🎮 ابدأ التحدي", "📖 مراجعة القواعد"])
+# --- منطقة التحدي ---
+prog = st.session_state.step / len(defis)
+st.progress(prog)
 
-with tab1:
-    prog = st.session_state.step / len(defis)
-    st.progress(prog)
-    st.write(f"📊 التحدي الحالي: {st.session_state.step + 1} / {len(defis)}")
-
-    if st.session_state.step < len(defis):
-        actuel = defis[st.session_state.step]
-        
-        # Affichage du mot
-        st.markdown(f'<div class="word-box">{actuel["mot"].replace("?", "<span style=\"color:var(--gold)\">؟</span>")}</div>', unsafe_allow_html=True)
-        
-        st.info("💡 ركّز جيداً في حركة الهمزة والحرف الذي قبلها!")
-
-        # Boutons de réponse
-        cols = st.columns(3)
-        for i, opt in enumerate(actuel["options"]):
-            if cols[i].button(opt, key=f"btn_{st.session_state.step}_{opt}"):
-                if opt == actuel["correct"]:
-                    play_sound(SUCCESS_SOUND) # <--- DÉCLENCHE LE SON DE VICTOIRE
-                    st.balloons()
-                    st.success(f"✅ مذهل! {actuel['exp']}")
-                    st.session_state.score += 10
-                    st.session_state.step += 1
-                    st.rerun()
-                else:
-                    play_sound(ERROR_SOUND) # <--- DÉCLENCHE LE SON D'ERREUR
-                    st.error("❌ حاولي مرة أخرى! ارجعي لدليل القواعد.")
-    else:
-        st.balloons()
-        st.markdown('<div class="word-box" style="font-size:40px !important;">🎊 أحسنتِ يا بطلة!</div>', unsafe_allow_html=True)
-        if st.button("🔄 إعادة التحدي"):
-            st.session_state.score = 0
-            st.session_state.step = 0
-            st.rerun()
-
-with tab2:
-    st.markdown("## 📖 مراجعة القواعد")
-    st.video("https://www.youtube.com/watch?v=R9P_O1A6A_I")
+if st.session_state.step < len(defis):
+    actuel = defis[st.session_state.step]
+    st.markdown(f'<div class="word-box">{actuel["mot"].replace("?", "<span style=\"color:var(--gold)\">؟</span>")}</div>', unsafe_allow_html=True)
+    
+    cols = st.columns(3)
+    for i, opt in enumerate(actuel["options"]):
+        if cols[i].button(opt, key=f"btn_{st.session_state.step}_{opt}"):
+            if opt == actuel["correct"]:
+                st.balloons()
+                speak_arabic("إجابة صحيحة، أحسنتِ") # نطق بالعربي
+                st.success(f"✅ مذهل! {actuel['exp']}")
+                st.session_state.score += 10
+                st.session_state.step += 1
+                st.rerun()
+            else:
+                speak_arabic("إجابة خاطئة، حاولي مرة أخرى") # نطق بالعربي
+                st.error("❌ حاولي مرة أخرى!")
+else:
+    st.balloons()
+    speak_arabic("تهانينا، لقد أكملت التحدي بنجاح")
+    st.markdown('<div class="word-box" style="font-size:40px !important;">🎊 أحسنتِ يا بطلة!</div>', unsafe_allow_html=True)
+    if st.button("🔄 إعادة التحدي"):
+        st.session_state.score = 0
+        st.session_state.step = 0
+        st.rerun()
 
 st.markdown("---")
 st.caption("© 2026 جميع الحقوق محفوظة لمنصة بَرَاعِم لُغَتي - جامعة سيدي بلعباس")
