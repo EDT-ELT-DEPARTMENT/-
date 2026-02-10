@@ -41,4 +41,5 @@ with col2:
     st.caption("الفتحة ⬅️ أ")
 
 st.sidebar.write("---")
-st.sidebar.write("إشراف: الأستاذ ميلوعة فريد")
+st.sidebar.write("إشراف: الطالبة عبو ماجدة")
+
