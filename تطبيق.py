@@ -58,5 +58,6 @@ if cols[2].button("أ"):
 st.sidebar.header("📊 لوحة التحكم")
 st.sidebar.metric("النقاط المستحقة", st.session_state.score)
 st.sidebar.write("---")
-st.sidebar.write("**إعداد:** الأستاذ ميلوعة فريد")
+st.sidebar.write("**إعداد:** الطالبة عبو ماجدة")
 st.sidebar.caption("© 2026 جميع الحقوق محفوظة")
+
