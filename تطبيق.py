@@ -1,15 +1,15 @@
 import streamlit as st
 
-# --- 1. إعدادات الصفحة الأساسية ---
+# --- CONFIGURATION DE LA PAGE ---
 st.set_page_config(
-    page_title="بَرَاعِم لُغَتي - تحدي الصور",
-    page_icon="🎨",
+    page_title="بَرَاعِم لُغَتي",
+    page_icon="🎓",
     layout="centered"
 )
 
-# --- 2. وظيفة النطق الصوتي بالعربية ---
+# --- FONCTION DE SYNTHÈSE VOCALE (ARABE) ---
 def speak_arabic(text):
-    """تحويل النص إلى كلام مسموع للمتصفح"""
+    """Utilise l'API Web Speech du navigateur pour parler en arabe"""
     js_code = f"""
         <script>
         var msg = new SpeechSynthesisUtterance();
@@ -21,7 +21,7 @@ def speak_arabic(text):
     """
     st.components.v1.html(js_code, height=0)
 
-# --- 3. تصميم الواجهة (CSS) ---
+# --- STYLE CSS (Interface large, Couleurs Bordeaux et Or) ---
 st.markdown("""
     <style>
     @import url('https://fonts.googleapis.com/css2?family=Amiri:wght@400;700&family=Cairo:wght@400;700&display=swap');
@@ -34,40 +34,36 @@ st.markdown("""
     
     .main { background-color: var(--bg-color); }
     
-    /* العناوين */
-    h1 { color: var(--bordeaux); font-family: 'Amiri', serif; font-size: 50px !important; text-align: center; }
-    h3 { font-family: 'Cairo', sans-serif; font-size: 26px !important; color: #333; text-align: center; }
+    /* Titres principaux */
+    h1 { color: var(--bordeaux); font-family: 'Amiri', serif; font-size: 55px !important; text-align: center; margin-bottom: 0px; }
+    h3 { font-family: 'Cairo', sans-serif; font-size: 28px !important; color: #333; text-align: center; margin-top: 0px; }
+    h2 { color: var(--bordeaux); font-family: 'Cairo', sans-serif; font-size: 32px !important; border-bottom: 3px solid var(--gold); padding-bottom: 10px; }
 
-    /* صندوق الصورة والكلمة */
-    .image-exercise-container {
-        background: white;
-        padding: 30px;
-        border-radius: 25px;
-        border: 3px solid var(--gold);
-        text-align: center;
-        box-shadow: 0 10px 20px rgba(0,0,0,0.1);
-        margin-bottom: 20px;
-    }
-
+    /* Boîte du mot à deviner (Très grande police) */
     .word-box { 
-        font-size: 90px !important; 
-        color: var(--bordeaux);
+        font-size: 110px !important; 
+        text-align: center; 
+        padding: 45px;
+        background: white; 
+        border-radius: 30px; 
+        box-shadow: 0 10px 25px rgba(0,0,0,0.1); 
+        margin: 35px 0;
+        border: 3px solid var(--gold);
         font-family: 'Amiri', serif;
         font-weight: bold;
-        margin: 20px 0;
     }
 
-    /* الأزرار الكبيرة */
+    /* Boutons de réponse (Style Bordeaux & Or) */
     .stButton>button { 
         background-color: var(--bordeaux); 
         color: white !important; 
-        font-size: 45px !important; 
+        font-size: 50px !important; 
         font-family: 'Amiri', serif !important;
         border-radius: 20px; 
         width: 100%;
-        height: 100px;
+        height: 110px;
         border: 4px solid var(--gold);
-        transition: 0.3s;
+        transition: 0.4s;
     }
     .stButton>button:hover { 
         background-color: var(--gold); 
@@ -75,125 +71,140 @@ st.markdown("""
         transform: scale(1.05); 
     }
 
-    /* دليل القواعد في الجانب */
+    /* Style du Guide des Règles dans la Sidebar */
     .rule-card {
         background-color: white;
         padding: 15px;
-        border-radius: 12px;
-        border-right: 6px solid var(--gold);
-        margin-bottom: 10px;
+        border-radius: 15px;
+        border-right: 8px solid var(--gold);
+        margin-bottom: 15px;
+        font-family: 'Cairo', sans-serif;
+        font-size: 18px;
+        box-shadow: 0 4px 6px rgba(0,0,0,0.05);
         text-align: right;
         direction: rtl;
+    }
+    .rule-title { color: var(--bordeaux); font-weight: bold; font-size: 22px; margin-bottom: 5px; }
+
+    /* Style pour le lien vidéo direct */
+    .video-link {
+        display: inline-block;
+        padding: 10px 20px;
+        background-color: var(--bordeaux);
+        color: white !important;
+        text-decoration: none;
+        border-radius: 10px;
         font-family: 'Cairo', sans-serif;
+        font-weight: bold;
+        margin-top: 10px;
+        border: 2px solid var(--gold);
     }
     </style>
     """, unsafe_allow_html=True)
 
-# --- 4. تهيئة المتغيرات ---
-if 'step_image' not in st.session_state:
-    st.session_state.step_image = 0
-if 'score_image' not in st.session_state:
-    st.session_state.score_image = 0
+# --- INITIALISATION DES VARIABLES DE SESSION ---
+if 'score' not in st.session_state:
+    st.session_state.score = 0
+if 'step' not in st.session_state:
+    st.session_state.step = 0
 
-# --- 5. قاعدة بيانات تمارين الصور ---
-# ملاحظة: استخدمت روابط صور تعليمية واضحة
-defis_images = [
-    {
-        "img": "https://img.freepik.com/free-vector/fountain-pen-concept-illustration_114360-12347.jpg", 
-        "mot": "بِـ?ـر", 
-        "options": ["ئ", "ؤ", "أ"], 
-        "correct": "ئ", 
-        "hint": "الصورة لبئر ماء. الكسرة تحت الباء قوية جداً!"
-    },
-    {
-        "img": "https://img.freepik.com/free-vector/human-head-with-brain-concept_23-2148450123.jpg", 
-        "mot": "رَ?َس", 
-        "options": ["أ", "ؤ", "ئ"], 
-        "correct": "أ", 
-        "hint": "هذا رأس إنسان. الفتحة فوق الراء تناسب الألف."
-    },
-    {
-        "img": "https://img.freepik.com/free-vector/flat-question-mark-background_23-2148149830.jpg", 
-        "mot": "سُـ?ـال", 
-        "options": ["ؤ", "ئ", "أ"], 
-        "correct": "ؤ", 
-        "hint": "هذه علامة سؤال. الضمة فوق السين تناسب الواو."
-    },
-    {
-        "img": "https://img.freepik.com/free-vector/wolf-concept-illustration_114360-16576.jpg", 
-        "mot": "ذِ?ْب", 
-        "options": ["ئ", "ؤ", "أ"], 
-        "correct": "ئ", 
-        "hint": "هذا ذئب بري. الكسرة تحت الذال تناسب النبرة."
-    }
+# --- BASE DE DONNÉES DES EXERCICES (10 défis) ---
+defis = [
+    {"mot": "سُـ?ـال", "options": ["ؤ", "ئ", "أ"], "correct": "ؤ", "exp": "الضمة أقوى من الفتحة"},
+    {"mot": "بِـ?ـر", "options": ["ئ", "ؤ", "أ"], "correct": "ئ", "exp": "الكسرة هي الأقوى دائماً"},
+    {"mot": "رَ?َس", "options": ["أ", "ؤ", "ئ"], "correct": "أ", "exp": "الفتحة تغلبت على السكون"},
+    {"mot": "مُـ?ـمِن", "options": ["ؤ", "أ", "ئ"], "correct": "ؤ", "exp": "الضمة أقوى من السكون"},
+    {"mot": "ذِ?ْب", "options": ["ئ", "أ", "ؤ"], "correct": "ئ", "exp": "الكسرة تناسبها النبرة"},
+    {"mot": "سَـ?َـلَ", "options": ["أ", "ئ", "ؤ"], "correct": "أ", "exp": "فتحة مع فتحة تناسب الألف"},
+    {"mot": "رِ?َة", "options": ["ئ", "ؤ", "أ"], "correct": "ئ", "exp": "الكسرة أقوى من الفتحة"},
+    {"mot": "فَـ?ْس", "options": ["أ", "ؤ", "ئ"], "correct": "أ", "exp": "الفتحة أقوى من السكون"},
+    {"mot": "مُـ?َـذِّن", "options": ["ؤ", "أ", "ئ"], "correct": "ؤ", "exp": "الضمة أقوى من الفتحة"},
+    {"mot": "بِيـ?َـة", "options": ["ئ", "أ", "ؤ"], "correct": "ئ", "exp": "بعد الياء الساكنة ترسم على النبرة"}
 ]
 
-# --- 6. القائمة الجانبية (Sidebar) ---
+# --- AFFICHAGE DU GUIDE DES RÈGLES (SIDEBAR) ---
 with st.sidebar:
-    st.markdown("<h2 style='text-align:right;'>📚 قاموس القواعد</h2>", unsafe_allow_html=True)
+    st.markdown("<h2>📚 دليل القواعد</h2>", unsafe_allow_html=True)
+    
     st.markdown("""
     <div class="rule-card">
-        <b>تذكر يا بطل:</b><br>
-        • الكسرة (ئ) ⬅️ الأقوى<br>
-        • الضمة (ؤ) ⬅️ قوية<br>
-        • الفتحة (أ) ⬅️ أقل قوة
+        <div class="rule-title">⚖️ قاعدة الميزان</div>
+        لرسم الهمزة المتوسطة، نقارن بين <b>حركتها</b> و <b>حركة الحرف الذي قبلها</b>.
+    </div>
+    
+    <div class="rule-card">
+        <div class="rule-title">🥇 سلم القوة</div>
+        1. <b>الكسرة:</b> الأقوى (تناسبها الياء ئ)<br>
+        2. <b>الضمة:</b> (تناسبها الواو ؤ)<br>
+        3. <b>الفتحة:</b> (تناسبها الألف أ)<br>
+        4. <b>السكون:</b> الأضعف دائمًا.
     </div>
     """, unsafe_allow_html=True)
+    
     st.write("---")
-    st.metric("نقاط تحدي الصور 🎨", st.session_state.score_image)
-    st.markdown(f"<p style='text-align:center;'>المشرف: <b>الأستاذ ميلوى فريد</b></p>", unsafe_allow_html=True)
+    st.metric("نقاطك الحالية 🌟", st.session_state.score)
+    st.markdown(f"<p style='text-align:center; color:maroon;'><b>الأستاذ المشرف:<br>ميلوى فريد</b></p>", unsafe_allow_html=True)
 
-# --- 7. الواجهة الرئيسية ---
-st.markdown("<h1>🎨 تحدي الصور والكلمات</h1>", unsafe_allow_html=True)
-st.markdown("<h3>انظر إلى الصورة، ثم أكمل الكلمة بالهمزة الصحيحة</h3>", unsafe_allow_html=True)
+# --- ZONE PRINCIPALE ---
+st.markdown("<h1>🎓 منصة بَرَاعِم لُغَتي</h1>", unsafe_allow_html=True)
+st.markdown("<h3>مشروع شركة ناشئة - الطالبة: عبو ماجدة</h3>", unsafe_allow_html=True)
 
-# شريط التقدم
-prog = st.session_state.step_image / len(defis_images)
+# --- ركن الفيديو التعليمي (NOUVEAU) ---
+with st.expander("📽️ ركن المشاهدة: تعلم قاعدة الهمزة بالفيديو"):
+    st.write("شاهد هذا الفيديو الممتع لفهم صراع الحركات وقوة الهمزة:")
+    # عرض الفيديو مباشرة في الصفحة
+    st.video("https://www.youtube.com/watch?v=R9P_O1A6A_I")
+    # وضع رابط مباشر للضغط عليه
+    st.markdown("""
+        <div style="text-align: center;">
+            <a href="https://www.youtube.com/watch?v=R9P_O1A6A_I" target="_blank" class="video-link">
+                🔗 اضغط هنا لفتح الفيديو في صفحة جديدة
+            </a>
+        </div>
+    """, unsafe_allow_html=True)
+
+st.write("---")
+
+# Barre de progression
+prog = st.session_state.step / len(defis)
 st.progress(prog)
+st.write(f"📊 التمرين رقم {st.session_state.step + 1} من {len(defis)}")
 
-if st.session_state.step_image < len(defis_images):
-    current = defis_images[st.session_state.step_image]
+if st.session_state.step < len(defis):
+    actuel = defis[st.session_state.step]
     
-    # حاوية التمرين
-    st.markdown('<div class="image-exercise-container">', unsafe_allow_html=True)
+    # Affichage du mot
+    st.markdown(f'<div class="word-box">{actuel["mot"].replace("?", "<span style=\"color:var(--gold)\">؟</span>")}</div>', unsafe_allow_html=True)
     
-    # عرض الصورة
-    st.image(current["img"], width=300)
-    
-    # عرض الكلمة الناقصة
-    st.markdown(f'<div class="word-box">{current["mot"].replace("?", "؟")}</div>', unsafe_allow_html=True)
-    
-    st.markdown('</div>', unsafe_allow_html=True)
-    
-    # أزرار الخيارات
+    st.info("💡 انظر إلى حركة الهمزة وما قبلها، ثم اختر الكرسي الصحيح!")
+
+    # Boutons de réponse
     cols = st.columns(3)
-    for i, opt in enumerate(current["options"]):
-        if cols[i].button(opt, key=f"img_btn_{opt}_{st.session_state.step_image}"):
-            if opt == current["correct"]:
+    for i, opt in enumerate(actuel["options"]):
+        if cols[i].button(opt, key=f"btn_{st.session_state.step}_{opt}"):
+            if opt == actuel["correct"]:
                 st.balloons()
-                speak_arabic("أحسنتِ، إجابة صحيحة")
-                st.success(f"✅ رائع! {current['hint']}")
-                st.session_state.score_image += 25
-                st.session_state.step_image += 1
+                speak_arabic("إجابة صحيحة، أحسنتِ")
+                st.success(f"✅ مذهل! {actuel['exp']}")
+                st.session_state.score += 10
+                st.session_state.step += 1
                 st.rerun()
             else:
-                speak_arabic("خطأ، حاولي مرة أخرى")
-                st.error("❌ ركزي في الصورة وفي حركة الحرف الأول!")
+                speak_arabic("إجابة خاطئة، حاولي مرة أخرى")
+                st.error("❌ إجابة غير صحيحة. راجعي دليل القواعد وحاولي مجدداً!")
 
 else:
-    # شاشة النهاية
+    # Fin du parcours
     st.balloons()
-    speak_arabic("عمل رائع، لقد أنهيتِ تحدي الصور")
-    st.markdown('<div class="image-exercise-container">', unsafe_allow_html=True)
-    st.markdown('<div class="word-box" style="font-size:40px !important;">🎊 أحسنتِ يا بطلة الصور!</div>', unsafe_allow_html=True)
-    st.metric("النتيجة النهائية", f"{st.session_state.score_image} نقطة")
+    speak_arabic("مبروك يا بطلة، لقد أكملت التحدي بنجاح")
+    st.markdown('<div class="word-box" style="font-size:45px !important;">🎊 أحسنتِ يا بطلة!<br>لقد أتقنتِ قواعد الهمزة</div>', unsafe_allow_html=True)
+    st.metric("مجموع نقاطك النهائي", f"{st.session_state.score} / 100")
     
-    if st.button("🔄 إعادة تحدي الصور"):
-        st.session_state.step_image = 0
-        st.session_state.score_image = 0
+    if st.button("🔄 إعادة التحدي من جديد"):
+        st.session_state.score = 0
+        st.session_state.step = 0
         st.rerun()
-    st.markdown('</div>', unsafe_allow_html=True)
 
-# --- 8. التذييل ---
+# Pied de page
 st.markdown("---")
-st.caption("© 2026 منصة بَرَاعِم لُغَتي - إعداد الطالبة: عبو ماجدة - كلية الآداب والفنون")
+st.caption("© 2026 جميع الحقوق محفوظة لمنصة بَرَاعِم لُغَتي - كلية الآداب والفنون - UDL-SBA")
