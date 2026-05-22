@@ -197,17 +197,38 @@ def generer_justificatif_iso(departement, donnees):
     doc = Document()
     appliquer_structure_pages_sans_ref(doc)
     
-    # Configuration géométrique stricte : L:1.19 | C:3.7 | R:1.4 (Total = 6.29 pouces)
     grid_table = doc.add_table(rows=2, cols=3)
     grid_table.alignment = WD_TABLE_ALIGNMENT.CENTER
+    
+    # Désactivation stricte de l'ajustement automatique du moteur Word
     grid_table.autofit = False
+    grid_table.allow_autofit = False
     
-    widths = [Inches(1.19), Inches(3.7), Inches(1.4)]
+    # 1 pouce = 1440 dxa (Données exactes demandées : 1.19" | 3.70" | 1.40")
+    dxa_widths = [int(1.19 * 1440), int(3.70 * 1440), int(1.40 * 1440)]
+    inch_widths = [Inches(1.19), Inches(3.70), Inches(1.40)]
     
-    # Application forcée des largeurs par cellule pour éviter toute déformation
+    # Injection stricte de la grille de définition des colonnes (w:tblGrid) au niveau XML
+    tblPr = grid_table._tbl.tblPr
+    tblGrid = OxmlElement('w:tblGrid')
+    for width_dxa in dxa_widths:
+        gridCol = OxmlElement('w:gridCol')
+        gridCol.set(qn('w:w'), str(width_dxa))
+        tblGrid.append(gridCol)
+    grid_table._tbl.insert(1, tblGrid)
+
+    # Application forcée des dimensions par cellule au niveau XML (w:tcW) pour contrer le texte
     for row in grid_table.rows:
-        for i, w in enumerate(widths):
-            row.cells[i].width = w
+        for idx, width_inch in enumerate(inch_widths):
+            cell = row.cells[idx]
+            cell.width = width_inch
+            
+            # Forcer la largeur brute dans les propriétés XML de la cellule
+            tcPr = cell._tc.get_or_add_tcPr()
+            tcW = OxmlElement('w:tcW')
+            tcW.set(qn('w:w'), str(dxa_widths[idx]))
+            tcW.set(qn('w:type'), 'dxa')
+            tcPr.append(tcW)
 
     cell_logo_haut = grid_table.cell(0, 0)
     cell_logo_bas = grid_table.cell(1, 0)
@@ -222,7 +243,7 @@ def generer_justificatif_iso(departement, donnees):
     cell_logo_haut.merge(cell_logo_bas)
     cell_meta_haut.merge(cell_meta_bas)
     
-    # Formatage de l'ensemble des cellules (marges internes, bordures, interlignes)
+    # Formatage final de l'ensemble des cellules
     for row in grid_table.rows:
         for cell in row.cells:
             set_cell_margins(cell, top=60, bottom=60, left=100, right=100)
@@ -231,7 +252,7 @@ def generer_justificatif_iso(departement, donnees):
             for p in cell.paragraphs:
                 initialiser_paragraphe_strict(p)
 
-    # Insertion du contenu - Logo aux dimensions strictes (Hauteur: 0.94", Largeur: 0.58")
+    # Insertion du contenu - Logo aux dimensions strictes en pouces (Hauteur: 0.94 inch, Largeur: 0.58 inch)
     p_logo = cell_logo_haut.paragraphs[0]
     p_logo.alignment = WD_ALIGN_PARAGRAPH.CENTER
     nom_fichier_logo = "logo.PNG"
@@ -261,7 +282,7 @@ def generer_justificatif_iso(departement, donnees):
     rc.font.size = Pt(11)
     rc.bold = True
 
-    # Insertion du contenu - Métadonnées ISO (Cellule droite de 1.4" en Calibri 11)
+    # Insertion du contenu - Métadonnées ISO (Cellule droite de 1.4 inch en Calibri 11)
     p_meta = cell_meta_haut.paragraphs[0]
     p_meta.alignment = WD_ALIGN_PARAGRAPH.LEFT
     rm1 = p_meta.add_run("Code : PPER.06\n")
@@ -354,6 +375,7 @@ def generer_justificatif_iso(departement, donnees):
     p_esp5 = doc.add_paragraph()
     initialiser_paragraphe_strict(p_esp5)
     
+    # Clause finale
     p_cloture = doc.add_paragraph()
     initialiser_paragraphe_strict(p_cloture)
     r_cloture = p_cloture.add_run("La présente attestation est délivrée à l’intéressé(e) pour servir et valoir ce que de droit.")
@@ -364,7 +386,7 @@ def generer_justificatif_iso(departement, donnees):
     p_esp6 = doc.add_paragraph()
     initialiser_paragraphe_strict(p_esp6)
     
-    # Bloc visa / signature de l'autorité (Calibri 11)
+    # Signature
     p_sig = doc.add_paragraph()
     initialiser_paragraphe_strict(p_sig)
     p_sig.alignment = WD_ALIGN_PARAGRAPH.LEFT
@@ -445,191 +467,4 @@ def generer_bordereau_iso(departement, donnees):
     row_joint[0].text = "Veuillez trouver ci-joint :"
     p_j = row_joint[0].paragraphs[0]
     initialiser_paragraphe_strict(p_j)
-    p_j.runs[0].font.italic = True
-    p_j.runs[0].font.name = 'Calibri'
-    p_j.runs[0].font.size = Pt(11)
-    set_cell_margins(row_joint[0], top=60, bottom=60)
-
-    for index, piece in enumerate(liste_pieces):
-        row_idx = 2 + index
-        current_row = table.rows[row_idx].cells
-        current_row[0].text = str(piece["Désignation des pièces"])
-        current_row[1].text = str(piece["Nbre"])
-        current_row[2].text = str(piece["Observations"])
-        
-        for i, cell in enumerate(current_row):
-            p_c = cell.paragraphs[0]
-            initialiser_paragraphe_strict(p_c)
-            set_cell_margins(cell, top=60, bottom=60)
-            if len(p_c.runs) > 0:
-                p_c.runs[0].font.name = 'Calibri'
-                p_c.runs[0].font.size = Pt(11)
-            if i == 1:
-                p_c.alignment = WD_ALIGN_PARAGRAPH.CENTER
-
-    p_esp4 = doc.add_paragraph()
-    initialiser_paragraphe_strict(p_esp4)
-
-    p_signatures = doc.add_paragraph()
-    initialiser_paragraphe_strict(p_signatures)
-    p_signatures.alignment = WD_ALIGN_PARAGRAPH.LEFT
-    date_texte = donnees['date_creation'].strftime('%d/%m/%Y')
-    run_sig = p_signatures.add_run(f"Chef de département\t\t\t\tSidi bel abbés le : {date_texte}")
-    run_sig.font.name = 'Calibri'
-    run_sig.font.size = Pt(11)
-    run_sig.bold = True
-
-    p_esp5 = doc.add_paragraph()
-    initialiser_paragraphe_strict(p_esp5)
-
-    p_accuse = doc.add_paragraph()
-    initialiser_paragraphe_strict(p_accuse)
-    p_accuse.alignment = WD_ALIGN_PARAGRAPH.RIGHT
-    run_accuse = p_accuse.add_run("Accusé de réception    ")
-    run_accuse.font.name = 'Calibri'
-    run_accuse.font.size = Pt(11)
-    run_accuse.font.underline = True
-    run_accuse.bold = True
-
-    return doc
-
-def generer_pv_generique(departement, type_pv, donnees):
-    """Générateur secondaire de secours (Calibri 11 strict)."""
-    doc = Document()
-    p = doc.add_paragraph()
-    initialiser_paragraphe_strict(p)
-    run = p.add_run(f"{type_pv} - {departement}\nDocument en cours.")
-    run.font.name = 'Calibri'
-    run.font.size = Pt(11)
-    return doc
-
-# ==========================================
-# INTERFACE UTILISATEUR STREAMLIT
-# ==========================================
-st.set_page_config(page_title="Générateur ISO Multi-Documents", layout="wide")
-
-st.caption(TITRE_PLATEFORME)
-st.title("Gestion Administrative - Bordereaux & PVs")
-
-col_dept, col_doc = st.columns(2)
-with col_dept:
-    dept_choisi = st.selectbox("Département émetteur :", DEPARTEMENTS)
-with col_doc:
-    doc_choisi = st.selectbox("Nature du document à générer :", TYPES_DOCUMENTS, index=1)
-
-st.divider()
-st.subheader(f"Formulaire d'édition - {doc_choisi}")
-
-donnees_doc = {}
-
-# --- FORMULAIRE : BORDEREAU D'ENVOI ---
-if doc_choisi == "Bordereau d'envoi":
-    col_ref, col_date = st.columns(2)
-    with col_ref:
-        donnees_doc['num_reference'] = st.text_input("Référence séquentielle (Ex: 27)", value="27")
-    with col_date:
-        donnees_doc['date_creation'] = st.date_input("Date d'édition", datetime.now())
-        
-    st.markdown("##### Destinataire officiel")
-    choix_dest = st.selectbox("Sélectionnez le destinataire dans la liste :", OPTIONS_DESTINATAIRES, index=0)
-    
-    if choix_dest == "Autres":
-        donnees_doc['destinataire'] = st.text_input("Veuillez saisir la destination personnalisée :", value="")
-    else:
-        donnees_doc['destinataire'] = choix_dest
-        
-    st.markdown("---")
-    st.write("**Configuration du Tableau de Transmission**")
-    
-    df_initial = pd.DataFrame([
-        {"Désignation des pièces": "Fiches de vœux du second semestre", "Nbre": 12, "Observations": "Pour examen"},
-        {"Désignation des pièces": "Procès-verbal de délibération", "Nbre": 2, "Observations": "Pour affichage"}
-    ])
-    
-    df_edite = st.data_editor(
-        df_initial, 
-        num_rows="dynamic", 
-        use_container_width=True,
-        column_config={
-            "Désignation des pièces": st.column_config.TextColumn(width="medium", required=True),
-            "Nbre": st.column_config.NumberColumn(width="small", min_value=1, required=True),
-            "Observations": st.column_config.TextColumn(width="medium")
-        }
-    )
-    donnees_doc['liste_pieces'] = df_edite.to_dict(orient="records")
-
-# --- FORMULAIRE : JUSTIFICATION D'ABSENCE ---
-elif doc_choisi == "Justification d'absence":
-    col_nom, col_annee = st.columns(2)
-    with col_nom:
-        donnees_doc['nom_prenom'] = st.text_input("Nom et prénom de l'étudiant(e) :", value="Benali Mohamed")
-    with col_annee:
-        donnees_doc['annee_etude'] = st.text_input("Année d'étude (Ex: 1ère Année Master)", value="2ème Année Master")
-        
-    col_spec, col_motif = st.columns(2)
-    with col_spec:
-        donnees_doc['specialite'] = st.text_input("Spécialité / Option :", value="Réseaux Électriques")
-    with col_motif:
-        donnees_doc['motif_selectionne'] = st.selectbox("Motif réglementaire retenu :", MOTIFS_ABSENCE, index=0)
-        
-    col_d1, col_d2, col_d3 = st.columns(3)
-    with col_d1:
-        donnees_doc['date_debut'] = st.date_input("Date de début de l'absence", datetime.now())
-    with col_d2:
-        donnees_doc['date_fin'] = st.date_input("Date de fin de l'absence", datetime.now())
-    with col_d3:
-        donnees_doc['date_edition'] = st.date_input("Date de délivrance", datetime.now())
-
-# --- FORMULAIRE : PAR DÉFAUT (PVs) ---
-else:
-    with st.form("form_autres"):
-        donnees_doc['date_creation'] = st.date_input("Date", datetime.now())
-        donnees_doc['contenu'] = st.text_area("Contenu textuel")
-        st.form_submit_button("Valider la saisie")
-
-st.markdown("<br>", unsafe_allow_html=True)
-
-# ==========================================
-# GESTION DES ACTIONS ET ACTIONS FINALES
-# ==========================================
-if doc_choisi == "Bordereau d'envoi":
-    if st.button("Compiler et Générer le Bordereau Officiel"):
-        if not donnees_doc['destinataire'].strip():
-            st.error("Erreur : Le champ de destination personnalisée ne peut pas être vide.")
-        else:
-            try:
-                document_final = generer_bordereau_iso(dept_choisi, donnees_doc)
-                output_stream = io.BytesIO()
-                document_final.save(output_stream)
-                output_stream.seek(0)
-                
-                st.success("✓ Bordereau d'envoi généré avec succès.")
-                st.download_button(
-                    label="⬇️ Télécharger le Bordereau d'envoi (.docx)",
-                    data=output_stream,
-                    file_name=f"Bordereau_{dept_choisi.replace(' ', '_')}.docx",
-                    mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document"
-                )
-            except Exception as error:
-                st.error(f"Échec de l'opération de génération : {str(error)}")
-
-elif doc_choisi == "Justification d'absence":
-    if st.button("Compiler et Générer la Justification d'Absence"):
-        if not donnees_doc['nom_prenom'].strip():
-            st.error("Erreur : Le nom de l'étudiant ne peut pas être vide.")
-        else:
-            try:
-                document_final = generer_justificatif_iso(dept_choisi, donnees_doc)
-                output_stream = io.BytesIO()
-                document_final.save(output_stream)
-                output_stream.seek(0)
-                
-                st.success("✓ Justification d'absence générée avec succès (Grille ISO stricte 1.19 / 3.7 / 1.4).")
-                st.download_button(
-                    label="⬇️ Télécharger le justificatif (.docx)",
-                    data=output_stream,
-                    file_name=f"Justification_Absence_{donnees_doc['nom_prenom'].replace(' ', '_')}.docx",
-                    mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document"
-                )
-            except Exception as error:
-                st.error(f"Échec de l'opération de génération : {str(error)}")
+    p_j.runs[0].
