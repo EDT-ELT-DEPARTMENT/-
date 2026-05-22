@@ -122,15 +122,16 @@ DATA_ENSEIGNANTS = charger_base_enseignements(NOM_FICHIER_EXCEL)
 if "historique_justifications" not in st.session_state:
     st.session_state["historique_justifications"] = []
 
-if "compteur_absences" not in st.session_state:
-    st.session_state["compteur_absences"] = {}
+# Le compteur d'absences utilise désormais un tuple comme clé unique : (nom_etudiant, enseignant, matiere)
+if "compteur_absences_strict" not in st.session_state:
+    st.session_state["compteur_absences_strict"] = {}
 
-# Dictionnaire pour mémoriser les dernières métadonnées de l'absence par étudiant
-if "metadonnees_absences" not in st.session_state:
-    st.session_state["metadonnees_absences"] = {}
+# Mémorisation des métadonnées indexées par la clé composite (nom_etudiant, enseignant, matiere)
+if "metadonnees_absences_strict" not in st.session_state:
+    st.session_state["metadonnees_absences_strict"] = {}
 
 # ==========================================
-# FONCTIONS TECHNIQUES DE STRUCTURE
+# FONCTIONS TECHNIQUES DE STRUCTURE DOCUMENTAIRE
 # ==========================================
 def set_cell_margins(cell, top=60, bottom=60, left=120, right=120):
     """Définit l'espacement interne (padding) compact des cellules d'un tableau."""
@@ -193,7 +194,6 @@ def appliquer_structure_pages_sans_ref(doc):
         footer = section.footer
         footer_p = footer.paragraphs[0]
         initialiser_paragraphe_strict(footer_p)
-        
         footer_p.alignment = WD_ALIGN_PARAGRAPH.RIGHT
         
         r_page_actuelle = footer_p.add_run()
@@ -685,13 +685,16 @@ with tab_formulaire:
         with col_d3:
             donnees_doc['date_edition'] = st.date_input("Date de délivrance", datetime.now())
 
+        # Vérification basée sur le couple strict (étudiant, enseignant, matière)
         nom_etudiant_clean = donnees_doc['nom_prenom'].strip()
         if nom_etudiant_clean:
-            nb_absences_actuelles = st.session_state["compteur_absences"].get(nom_etudiant_clean, 0)
+            cle_composite_verif = (nom_etudiant_clean, donnees_doc['enseignant'], donnees_doc['matiere'])
+            nb_absences_actuelles = st.session_state["compteur_absences_strict"].get(cle_composite_verif, 0)
+            
             if nb_absences_actuelles >= 5:
-                st.error(f"⚠️ ATTENTION CRITIQUE : L'étudiant '{nom_etudiant_clean}' compte déjà {nb_absences_actuelles} absences justifiées. Il est déclaré EXCLU.")
+                st.error(f"⚠️ ATTENTION CRITIQUE : L'étudiant '{nom_etudiant_clean}' compte déjà {nb_absences_actuelles} absences dans cette matière spécifique ({donnees_doc['matiere']}) avec Pr. {donnees_doc['enseignant']}. Il est déclaré EXCLU de ce cours.")
             elif nb_absences_actuelles > 0:
-                st.warning(f"Note : Cet étudiant possède actuellement {nb_absences_actuelles} absence(s) enregistrée(s).")
+                st.warning(f"Note : Cet étudiant possède actuellement {nb_absences_actuelles} absence(s) enregistrée(s) pour ce cours précis.")
 
     else:
         with st.form("form_autres"):
@@ -732,42 +735,47 @@ with tab_formulaire:
             else:
                 try:
                     nom_etudiant = donnees_doc['nom_prenom'].strip()
+                    ens_concerne = donnees_doc['enseignant']
+                    mat_concerne = donnees_doc['matiere']
+                    
+                    # Construction de la clé stricte d'interdépendance
+                    cle_composite = (nom_etudiant, ens_concerne, mat_concerne)
                     
                     document_final = generer_justificatif_iso(dept_choisi, donnees_doc)
                     output_stream = io.BytesIO()
                     document_final.save(output_stream)
                     output_stream.seek(0)
                     
-                    # Incrémentation du compteur global
-                    st.session_state["compteur_absences"][nom_etudiant] = st.session_state["compteur_absences"].get(nom_etudiant, 0) + 1
-                    total_absences = st.session_state["compteur_absences"][nom_etudiant]
+                    # Incrémentation du compteur lié STRICTEMENT à cet enseignant et cette matière
+                    st.session_state["compteur_absences_strict"][cle_composite] = st.session_state["compteur_absences_strict"].get(cle_composite, 0) + 1
+                    total_absences = st.session_state["compteur_absences_strict"][cle_composite]
                     
-                    # Sauvegarde des métadonnées contextuelles de la dernière absence pour l'export des exclus
-                    st.session_state["metadonnees_absences"][nom_etudiant] = {
+                    # Sauvegarde des métadonnées contextuelles propres à ce binôme enseignant/matière
+                    st.session_state["metadonnees_absences_strict"][cle_composite] = {
                         "date_absence": donnees_doc['date_debut'].strftime('%d/%m/%Y'),
                         "date_delivrance": donnees_doc['date_edition'].strftime('%d/%m/%Y'),
-                        "enseignant": donnees_doc['enseignant'],
-                        "matiere": donnees_doc['matiere']
+                        "enseignant": ens_concerne,
+                        "matiere": mat_concerne
                     }
                     
-                    # Insertion dans l'historique global de session
+                    # Insertion dans l'historique global
                     enregistrement_historique = {
                         "Date Opération": datetime.now().strftime("%d/%m/%Y %H:%M"),
                         "Étudiant": nom_etudiant,
                         "Année d'étude": donnees_doc['annee_etude'],
                         "Spécialité": donnees_doc['specialite'],
-                        "Enseignant": donnees_doc['enseignant'],
-                        "Matière": donnees_doc['matiere'],
+                        "Enseignant": ens_concerne,
+                        "Matière": mat_concerne,
                         "Motif": donnees_doc['motif_selectionne'],
-                        "Total Absences Cumulées": total_absences,
-                        "Statut": "EXCLU" if total_absences >= 5 else "Actif"
+                        "Absences dans cette matière": total_absences,
+                        "Statut": "EXCLU (Matière)" if total_absences >= 5 else "Actif"
                     }
                     st.session_state["historique_justifications"].append(enregistrement_historique)
                     
-                    st.success(f"✓ Justification validée (Absence n°{total_absences} enregistrée).")
+                    st.success(f"✓ Justification validée (Absence n°{total_absences} enregistrée pour le cours de {mat_concerne}).")
                     
                     if total_absences >= 5:
-                        st.error(f"🚨 Seuil critique atteint ou dépassé ! L'étudiant {nom_etudiant} est déclaré EXCLU.")
+                        st.error(f"🚨 Seuil critique atteint ! L'étudiant {nom_etudiant} est déclaré EXCLU du module : {mat_concerne}.")
                         
                     st.download_button(
                         label="⬇️ Télécharger le justificatif (.docx)",
@@ -788,18 +796,20 @@ with tab_historique:
         st.dataframe(df_historique, use_container_width=True)
         
         st.divider()
-        st.subheader("🚨 Tableau de suivi des Seuils d'Exclusion (>= 5 Absences)")
+        st.subheader("🚨 Suivi par Matière et Seuils d'Exclusion (>= 5 Absences par matière)")
         
         donnees_compteur = []
         donnees_exclus_uniquement = []
         
-        for etudiant, nb_abs in st.session_state["compteur_absences"].items():
-            meta = st.session_state["metadonnees_absences"].get(etudiant, {"date_absence": "N/A", "date_delivrance": "N/A", "enseignant": "N/A", "matiere": "N/A"})
+        # Extraction basée sur la clé composite stricte
+        for triplet_cle, nb_abs in st.session_state["compteur_absences_strict"].items():
+            etudiant_nom, ens_nom, mat_nom = triplet_cle
+            meta = st.session_state["metadonnees_absences_strict"].get(triplet_cle, {"date_absence": "N/A", "date_delivrance": "N/A", "enseignant": ens_nom, "matiere": mat_nom})
             
             situation = "❌ EXCLU DE LA MATIÈRE" if nb_abs >= 5 else "✅ En règle"
             
             ligne_complete = {
-                "Nom & Prénom Étudiant": etudiant,
+                "Nom & Prénom Étudiant": etudiant_nom,
                 "Date de l'absence": meta["date_absence"],
                 "Date de délivrance": meta["date_delivrance"],
                 "Enseignant": meta["enseignant"],
@@ -809,7 +819,6 @@ with tab_historique:
             }
             donnees_compteur.append(ligne_complete)
             
-            # Filtrage pour la liste dédiée des exclus
             if nb_abs >= 5:
                 donnees_exclus_uniquement.append(ligne_complete)
             
@@ -826,28 +835,28 @@ with tab_historique:
         st.markdown("### 💾 Extraction et Téléchargement de la Liste des Exclus")
         
         if df_exclus.empty:
-            st.info("Aucun étudiant n'a atteint le seuil d'exclusion (5 absences) pour le moment. Les fonctions d'exports s'activeront dès l'apparition d'un cas d'exclusion.")
+            st.info("Aucun étudiant n'a atteint le seuil d'exclusion (5 absences consécutives/cumulées dans la même matière) pour le moment.")
         else:
-            st.warning(f"Total détecté : {len(df_exclus)} étudiant(s) sous le coup d'une mesure d'exclusion réglementaire.")
+            st.warning(f"Total détecté : {len(df_exclus)} cas d'exclusion réglementaire par matière.")
             
             col_btn_excel, col_btn_html = st.columns(2)
             
-            # Génération du flux Excel en mémoire
+            # Génération Excel
             with col_btn_excel:
                 buffer_excel = io.BytesIO()
                 with pd.ExcelWriter(buffer_excel, engine='openpyxl') as writer:
-                    df_exclus.to_excel(writer, index=False, sheet_name='Liste_des_Exclus')
+                    df_exclus.to_excel(writer, index=False, sheet_name='Liste_des_Exclus_Matiere')
                 buffer_excel.seek(0)
                 
                 st.download_button(
                     label="📥 Télécharger la Liste des Exclus en format Excel (.xlsx)",
                     data=buffer_excel,
-                    file_name=f"Liste_Etudiants_Exclus_{datetime.now().strftime('%d_%m_%Y')}.xlsx",
+                    file_name=f"Liste_Exclus_Par_Matiere_{datetime.now().strftime('%d_%m_%Y')}.xlsx",
                     mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
                     use_container_width=True
                 )
                 
-            # Génération du fichier HTML stylisé en mémoire
+            # Génération HTML
             with col_btn_html:
                 html_style = """
                 <style>
@@ -862,9 +871,8 @@ with tab_historique:
                 """
                 
                 html_titre_bloc = f'<div class="title">RÉPUBLIQUE ALGÉRIENNE DÉMOCRATIQUE ET POPULAIRE</div>'
-                html_titre_bloc += f'<div class="subtitle">{TITRE_PLATEFORME}<br>LISTE OFFICIELLE DES ÉTUDIANTS EXCLUS - SEMESTRE 2</div>'
+                html_titre_bloc += f'<div class="subtitle">{TITRE_PLATEFORME}<br>LISTE DES EXCLUS UNITAIRES PAR COUPLE (ENSEIGNANT / MATIÈRE)</div>'
                 
-                # Conversion du dataframe en table HTML brute puis injection des classes de style
                 html_table_brute = df_exclus.to_html(index=False)
                 html_table_brute = html_table_brute.replace('❌ EXCLU DE LA MATIÈRE', '<span class="badge-exclu">❌ EXCLU DE LA MATIÈRE</span>')
                 
@@ -873,7 +881,7 @@ with tab_historique:
                 st.download_button(
                     label="🌐 Télécharger la Liste des Exclus en format HTML (.html)",
                     data=html_document_complet,
-                    file_name=f"Liste_Etudiants_Exclus_{datetime.now().strftime('%d_%m_%Y')}.html",
+                    file_name=f"Liste_Exclus_Par_Matiere_{datetime.now().strftime('%d_%m_%Y')}.html",
                     mime="text/html",
                     use_container_width=True
                 )
