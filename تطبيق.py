@@ -1,210 +1,391 @@
 import streamlit as st
+from docx import Document
+from docx.shared import Inches, Pt
+from docx.enum.text import WD_ALIGN_PARAGRAPH
+from docx.oxml import OxmlElement
+from docx.oxml.ns import qn
+import io
+import os
+import pandas as pd
+from datetime import datetime
 
-# --- CONFIGURATION DE LA PAGE ---
-st.set_page_config(
-    page_title="بَرَاعِم لُغَتي",
-    page_icon="🎓",
-    layout="centered"
-)
+# ==========================================
+# CONFIGURATION ET CONSTANTES
+# ==========================================
+TITRE_PLATEFORME = "Plateforme de gestion des EDTs-S2-2026-Département d'Électrotechnique-Faculté de génie électrique-UDL-SBA"
 
-# --- FONCTION DE SYNTHÈSE VOCALE (ARABE) ---
-def speak_arabic(text):
-    """Utilise l'API Web Speech du navigateur pour parler en arabe"""
-    js_code = f"""
-        <script>
-        var msg = new SpeechSynthesisUtterance();
-        msg.text = "{text}";
-        msg.lang = "ar-SA";
-        msg.rate = 0.9; 
-        window.speechSynthesis.speak(msg);
-        </script>
-    """
-    st.components.v1.html(js_code, height=0)
-
-# --- STYLE CSS (Interface large, Couleurs Bordeaux et Or) ---
-st.markdown("""
-    <style>
-    @import url('https://fonts.googleapis.com/css2?family=Amiri:wght@400;700&family=Cairo:wght@400;700&display=swap');
-
-    :root {
-        --bordeaux: #800000;
-        --gold: #d4af37;
-        --bg-color: #fdfaf6;
-    }
-    
-    .main { background-color: var(--bg-color); }
-    
-    /* Titres principaux */
-    h1 { color: var(--bordeaux); font-family: 'Amiri', serif; font-size: 55px !important; text-align: center; margin-bottom: 0px; }
-    h3 { font-family: 'Cairo', sans-serif; font-size: 28px !important; color: #333; text-align: center; margin-top: 0px; }
-    h2 { color: var(--bordeaux); font-family: 'Cairo', sans-serif; font-size: 32px !important; border-bottom: 3px solid var(--gold); padding-bottom: 10px; }
-
-    /* Boîte du mot à deviner (Très grande police) */
-    .word-box { 
-        font-size: 110px !important; 
-        text-align: center; 
-        padding: 45px;
-        background: white; 
-        border-radius: 30px; 
-        box-shadow: 0 10px 25px rgba(0,0,0,0.1); 
-        margin: 35px 0;
-        border: 3px solid var(--gold);
-        font-family: 'Amiri', serif;
-        font-weight: bold;
-    }
-
-    /* Boutons de réponse (Style Bordeaux & Or) */
-    .stButton>button { 
-        background-color: var(--bordeaux); 
-        color: white !important; 
-        font-size: 50px !important; 
-        font-family: 'Amiri', serif !important;
-        border-radius: 20px; 
-        width: 100%;
-        height: 110px;
-        border: 4px solid var(--gold);
-        transition: 0.4s;
-    }
-    .stButton>button:hover { 
-        background-color: var(--gold); 
-        color: black !important; 
-        transform: scale(1.05); 
-    }
-
-    /* Style du Guide des Règles dans la Sidebar */
-    .rule-card {
-        background-color: white;
-        padding: 15px;
-        border-radius: 15px;
-        border-right: 8px solid var(--gold);
-        margin-bottom: 15px;
-        font-family: 'Cairo', sans-serif;
-        font-size: 18px;
-        box-shadow: 0 4px 6px rgba(0,0,0,0.05);
-        text-align: right;
-        direction: rtl;
-    }
-    .rule-title { color: var(--bordeaux); font-weight: bold; font-size: 22px; margin-bottom: 5px; }
-
-    /* Style pour le lien vidéo direct */
-    .video-link {
-        display: inline-block;
-        padding: 10px 20px;
-        background-color: var(--bordeaux);
-        color: white !important;
-        text-decoration: none;
-        border-radius: 10px;
-        font-family: 'Cairo', sans-serif;
-        font-weight: bold;
-        margin-top: 10px;
-        border: 2px solid var(--gold);
-    }
-    </style>
-    """, unsafe_allow_html=True)
-
-# --- INITIALISATION DES VARIABLES DE SESSION ---
-if 'score' not in st.session_state:
-    st.session_state.score = 0
-if 'step' not in st.session_state:
-    st.session_state.step = 0
-
-# --- BASE DE DONNÉES DES EXERCICES (10 défis) ---
-defis = [
-    {"mot": "سُـ?ـال", "options": ["ؤ", "ئ", "أ"], "correct": "ؤ", "exp": "الضمة أقوى من الفتحة"},
-    {"mot": "بِـ?ـر", "options": ["ئ", "ؤ", "أ"], "correct": "ئ", "exp": "الكسرة هي الأقوى دائماً"},
-    {"mot": "رَ?َس", "options": ["أ", "ؤ", "ئ"], "correct": "أ", "exp": "الفتحة تغلبت على السكون"},
-    {"mot": "مُـ?ـمِن", "options": ["ؤ", "أ", "ئ"], "correct": "ؤ", "exp": "الضمة أقوى من السكون"},
-    {"mot": "ذِ?ْب", "options": ["ئ", "أ", "ؤ"], "correct": "ئ", "exp": "الكسرة تناسبها النبرة"},
-    {"mot": "سَـ?َـلَ", "options": ["أ", "ئ", "ؤ"], "correct": "أ", "exp": "فتحة مع فتحة تناسب الألف"},
-    {"mot": "رِ?َة", "options": ["ئ", "ؤ", "أ"], "correct": "ئ", "exp": "الكسرة أقوى من الفتحة"},
-    {"mot": "فَـ?ْس", "options": ["أ", "ؤ", "ئ"], "correct": "أ", "exp": "الفتحة أقوى من السكون"},
-    {"mot": "مُـ?َـذِّن", "options": ["ؤ", "أ", "ئ"], "correct": "ؤ", "exp": "الضمة أقوى من الفتحة"},
-    {"mot": "بِيـ?َـة", "options": ["ئ", "أ", "ؤ"], "correct": "ئ", "exp": "بعد الياء الساكنة ترسم على النبرة"}
+DEPARTEMENTS = [
+    "Département d'Électrotechnique",
+    "Département d'Électronique",
+    "Département d'Automatique",
+    "Département de Télécommunications"
 ]
 
-# --- AFFICHAGE DU GUIDE DES RÈGLES (SIDEBAR) ---
-with st.sidebar:
-    st.markdown("<h2>📚 دليل القواعد</h2>", unsafe_allow_html=True)
+TYPES_DOCUMENTS = [
+    "Bordereau d'envoi",
+    "Procès-verbal (PV) de réunion",
+    "PV de surveillance",
+    "PV du Comité Pédagogique",
+    "Réunion du Conseil de Discipline"
+]
+
+OPTIONS_DESTINATAIRES = [
+    "Le Doyen de la faculté",
+    "Le vice Doyen de la Post graduation",
+    "Le vice Doyen de la graduation",
+    "Autres"
+]
+
+# ==========================================
+# FONCTIONS TECHNIQUES DE STRUCTURE
+# ==========================================
+def set_cell_margins(cell, top=100, bottom=100, left=150, right=150):
+    """Définit l'espacement interne (padding) des cellules d'un tableau."""
+    tc = cell._tc
+    tcPr = tc.get_or_add_tcPr()
+    tcMar = OxmlElement('w:tcMar')
+    for m, val in [('w:top', top), ('w:bottom', bottom), ('w:left', left), ('w:right', right)]:
+        node = OxmlElement(m)
+        node.set(qn('w:w'), str(val))
+        node.set(qn('w:type'), 'dxa')
+        tcMar.append(node)
+    tcPr.append(tcMar)
+
+def ajouter_champ_page(run, type_champ):
+    """Injecte un champ de numérotation dynamique (PAGE ou NUMPAGES) dans un paragraphe Word."""
+    fldChar1 = OxmlElement('w:fldChar')
+    fldChar1.set(qn('w:fldCharType'), 'begin')
+    instrText = OxmlElement('w:instrText')
+    instrText.set(qn('xml:space'), 'preserve')
+    instrText.text = type_champ
+    fldChar2 = OxmlElement('w:fldChar')
+    fldChar2.set(qn('w:fldCharType'), 'separate')
+    fldChar3 = OxmlElement('w:fldChar')
+    fldChar3.set(qn('w:fldCharType'), 'end')
     
-    st.markdown("""
-    <div class="rule-card">
-        <div class="rule-title">⚖️ قاعدة الميزان</div>
-        لرسم الهمزة المتوسطة، نقارن بين <b>حركتها</b> و <b>حركة الحرف الذي قبلها</b>.
-    </div>
+    run._r.append(fldChar1)
+    run._r.append(instrText)
+    run._r.append(fldChar2)
+    run._r.append(fldChar3)
+
+# ==========================================
+# GÉNÉRATEUR DE BORDEREAU ISO STRICT
+# ==========================================
+def generer_bordereau_iso(departement, donnees):
+    doc = Document()
     
-    <div class="rule-card">
-        <div class="rule-title">🥇 سلم القوة</div>
-        1. <b>الكسرة:</b> الأقوى (تناسبها الياء ئ)<br>
-        2. <b>الضمة:</b> (تناسبها الواو ؤ)<br>
-        3. <b>الفتحة:</b> (تناسبها الألف أ)<br>
-        4. <b>السكون:</b> الأضعف دائمًا.
-    </div>
-    """, unsafe_allow_html=True)
+    # Configuration des marges globales de la page (0.8 pouce partout)
+    for section in doc.sections:
+        section.top_margin = Inches(0.8)
+        section.bottom_margin = Inches(0.8)
+        section.left_margin = Inches(0.8)
+        section.right_margin = Inches(0.8)
+        
+        # Propagation du pied de page sur toutes les pages
+        section.different_first_page_header_footer = False
+        
+        # Structure du pied de page rectifié
+        footer = section.footer
+        footer_p = footer.paragraphs[0]
+        
+        footer_p.alignment = WD_ALIGN_PARAGRAPH.LEFT
+        footer_pPr = footer_p._p.get_or_add_pPr()
+        tabs = OxmlElement('w:tabs')
+        
+        # 1. Taquet au centre pour la référence (Centre à ~ 3.45 pouces = 4968 dxa)
+        tab_centre = OxmlElement('w:tab')
+        tab_centre.set(qn('w:val'), 'center')
+        tab_centre.set(qn('w:pos'), '4968')
+        tabs.append(tab_centre)
+        
+        # 2. Taquet à l'extrême droite pour les numéros de page (Extrémité à 6.9 pouces = 9936 dxa)
+        tab_droite = OxmlElement('w:tab')
+        tab_droite.set(qn('w:val'), 'right')
+        tab_droite.set(qn('w:pos'), '9936')
+        tabs.append(tab_droite)
+        
+        footer_pPr.append(tabs)
+        
+        # Premier saut vers le centre pour y écrire le code de référence
+        footer_p.add_run("\t")
+        r_ref_fixe = footer_p.add_run("Réf : UDL-GEL-ER-004-2026")
+        r_ref_fixe.font.name = 'Calibri'
+        r_ref_fixe.font.size = Pt(11)
+        
+        # Deuxième saut vers l'extrême droite pour y loger la pagination automatique
+        footer_p.add_run("\t")
+        
+        r_page_actuelle = footer_p.add_run()
+        r_page_actuelle.font.name = 'Calibri'
+        r_page_actuelle.font.size = Pt(11)
+        ajouter_champ_page(r_page_actuelle, "PAGE")
+        
+        r_separateur = footer_p.add_run("/")
+        r_separateur.font.name = 'Calibri'
+        r_separateur.font.size = Pt(11)
+        
+        r_total_pages = footer_p.add_run()
+        r_total_pages.font.name = 'Calibri'
+        r_total_pages.font.size = Pt(11)
+        ajouter_champ_page(r_total_pages, "NUMPAGES")
+
+    # 1. STRUCTURE DE L'EN-TÊTE VIA UN TABLEAU INVISIBLE
+    header_table = doc.add_table(rows=1, cols=2)
+    header_table.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    header_table.autofit = False
     
-    st.write("---")
-    st.metric("نقاطك الحالية 🌟", st.session_state.score)
-    st.markdown(f"<p style='text-align:center; color:maroon;'><b>الأستاذ المشرف:<br>ميلوى فريد</b></p>", unsafe_allow_html=True)
-
-# --- ZONE PRINCIPALE ---
-st.markdown("<h1>🎓 منصة بَرَاعِم لُغَتي</h1>", unsafe_allow_html=True)
-st.markdown("<h3>مشروع شركة ناشئة - الطالبة: عبو ماجدة</h3>", unsafe_allow_html=True)
-
-# --- ركن الفيديو التعليمي (NOUVEAU) ---
-with st.expander("📽️ ركن المشاهدة: تعلم قاعدة الهمزة بالفيديو"):
-    st.write("شاهد هذا الفيديو الممتع لفهم صراع الحركات وقوة الهمزة:")
-    # عرض الفيديو مباشرة في الصفحة
-    st.video("https://www.youtube.com/watch?v=R9P_O1A6A_I")
-    # وضع رابط مباشر للضغط عليه
-    st.markdown("""
-        <div style="text-align: center;">
-            <a href="https://www.youtube.com/watch?v=R9P_O1A6A_I" target="_blank" class="video-link">
-                🔗 اضغط هنا لفتح الفيديو في صفحة جديدة
-            </a>
-        </div>
-    """, unsafe_allow_html=True)
-
-st.write("---")
-
-# Barre de progression
-prog = st.session_state.step / len(defis)
-st.progress(prog)
-st.write(f"📊 التمرين رقم {st.session_state.step + 1} من {len(defis)}")
-
-if st.session_state.step < len(defis):
-    actuel = defis[st.session_state.step]
+    header_table.columns[0].width = Inches(1.2)
+    header_table.columns[1].width = Inches(5.7)
     
-    # Affichage du mot
-    st.markdown(f'<div class="word-box">{actuel["mot"].replace("?", "<span style=\"color:var(--gold)\">؟</span>")}</div>', unsafe_allow_html=True)
+    cell_logo = header_table.rows[0].cells[0]
+    cell_texte = header_table.rows[0].cells[1]
     
-    st.info("💡 انظر إلى حركة الهمزة وما قبلها، ثم اختر الكرسي الصحيح!")
+    tblPr = header_table._tbl.tblPr
+    tblBorders = OxmlElement('w:tblBorders')
+    for border_name in ['top', 'left', 'bottom', 'right', 'insideH', 'insideV']:
+        border = OxmlElement(f'w:{border_name}')
+        border.set(qn('w:val'), 'none')
+        tblBorders.append(border)
+    tblPr.append(tblBorders)
 
-    # Boutons de réponse
-    cols = st.columns(3)
-    for i, opt in enumerate(actuel["options"]):
-        if cols[i].button(opt, key=f"btn_{st.session_state.step}_{opt}"):
-            if opt == actuel["correct"]:
-                st.balloons()
-                speak_arabic("إجابة صحيحة، أحسنتِ")
-                st.success(f"✅ مذهل! {actuel['exp']}")
-                st.session_state.score += 10
-                st.session_state.step += 1
-                st.rerun()
-            else:
-                speak_arabic("إجابة خاطئة، حاولي مرة أخرى")
-                st.error("❌ إجابة غير صحيحة. راجعي دليل القواعد وحاولي مجدداً!")
+    # Insertion du Logo (Largeur 80 pixels = 0.833 pouces)
+    p_logo = cell_logo.paragraphs[0]
+    p_logo.alignment = WD_ALIGN_PARAGRAPH.LEFT
+    
+    nom_fichier_logo = "logo.PNG"
+    if os.path.exists(nom_fichier_logo):
+        p_logo.add_run().add_picture(nom_fichier_logo, width=Inches(0.833))
+    else:
+        r_alt = p_logo.add_run("[LOGO UNIVERSITÉ]")
+        r_alt.font.name = 'Calibri'
+        r_alt.font.size = Pt(8)
+        r_alt.font.italic = True
+
+    # Insertion des textes officiels de l'en-tête (Calibri)
+    p_en_tete = cell_texte.paragraphs[0]
+    p_en_tete.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    
+    r1 = p_en_tete.add_run("RÉPUBLIQUE ALGÉRIENNE DÉMOCRATIQUE ET POPULAIRE\n")
+    r1.bold = True
+    r1.font.size = Pt(11)
+    r1.font.name = 'Calibri'
+    
+    r2 = p_en_tete.add_run(
+        "Ministère de l'Enseignement Supérieur et de la Recherche Scientifique\n"
+        "Université Djillali Liabes - Sidi Bel Abbès\n"
+        "Faculté de Génie Électrique\n"
+    )
+    r2.font.size = Pt(10)
+    r2.font.name = 'Calibri'
+    
+    r_dept = p_en_tete.add_run(f"{departement.upper()}\n")
+    r_dept.bold = True
+    r_dept.font.size = Pt(11)
+    r_dept.font.name = 'Calibri'
+
+    doc.add_paragraph("\n")
+
+    # 2. RÉFÉRENCE CHRONOLOGIQUE
+    p_ref = doc.add_paragraph()
+    p_ref.alignment = WD_ALIGN_PARAGRAPH.LEFT
+    r_ref = p_ref.add_run(f"N° : {donnees['num_reference']}/ F.G.E/ V.D.E.Q.L.E/2026")
+    r_ref.font.size = Pt(10)
+    r_ref.font.name = 'Calibri'
+    r_ref.bold = True
+
+    doc.add_paragraph("\n")
+
+    # 3. TITRE DU BORDEREAU (Taille 36, Calibri, Italique, Souligné)
+    p_titre = doc.add_paragraph()
+    p_titre.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    r_titre = p_titre.add_run("BORDEREAU D’ENVOI")
+    r_titre.font.name = 'Calibri'
+    r_titre.font.size = Pt(36)
+    r_titre.italic = True
+    r_titre.underline = True
+    r_titre.bold = True
+    
+    doc.add_paragraph("\n")
+
+    # 4. DESTINATAIRE CONSTRUIT DYNAMIQUEMENT (Calibri)
+    p_dest = doc.add_paragraph()
+    p_dest.alignment = WD_ALIGN_PARAGRAPH.LEFT
+    r_dest = p_dest.add_run(f"A monsieur : {donnees['destinataire']}")
+    r_dest.bold = True
+    r_dest.font.size = Pt(12)
+    r_dest.font.name = 'Calibri'
+
+    doc.add_paragraph("\n")
+
+    # 5. TABLEAU DE TRANSMISSION MULTI-LIGNES
+    liste_pieces = donnees['liste_pieces']
+    nb_lignes_totatles = 2 + len(liste_pieces)
+    
+    table = doc.add_table(rows=nb_lignes_totatles, cols=3)
+    table.style = 'Table Grid'
+    
+    table.columns[0].width = Inches(4.5)
+    table.columns[1].width = Inches(0.8)
+    table.columns[2].width = Inches(1.7)
+
+    # Ligne 1 : En-têtes fixes
+    hdr_cells = table.rows[0].cells
+    hdr_cells[0].text = "Désignation des pièces"
+    hdr_cells[1].text = "Nbre"
+    hdr_cells[2].text = "Observations"
+    
+    for cell in hdr_cells:
+        cell.paragraphs[0].alignment = WD_ALIGN_PARAGRAPH.CENTER
+        cell.paragraphs[0].runs[0].font.bold = True
+        cell.paragraphs[0].runs[0].font.name = 'Calibri'
+        cell.paragraphs[0].runs[0].font.size = Pt(10)
+        set_cell_margins(cell, top=120, bottom=120)
+
+    # Ligne 2 : Formule d'accompagnement
+    row_joint = table.rows[1].cells
+    row_joint[0].text = "Veuillez trouver ci-joint :"
+    row_joint[0].paragraphs[0].runs[0].font.italic = True
+    row_joint[0].paragraphs[0].runs[0].font.name = 'Calibri'
+    row_joint[0].paragraphs[0].runs[0].font.size = Pt(10)
+    set_cell_margins(row_joint[0], top=80, bottom=80)
+
+    # Lignes Dynamiques
+    for index, piece in enumerate(liste_pieces):
+        row_idx = 2 + index
+        current_row = table.rows[row_idx].cells
+        
+        current_row[0].text = str(piece["Désignation des pièces"])
+        current_row[1].text = str(piece["Nbre"])
+        current_row[2].text = str(piece["Observations"])
+        
+        for i, cell in enumerate(current_row):
+            set_cell_margins(cell, top=150, bottom=300)
+            if len(cell.paragraphs[0].runs) > 0:
+                cell.paragraphs[0].runs[0].font.name = 'Calibri'
+                cell.paragraphs[0].runs[0].font.size = Pt(10)
+            if i == 1:
+                cell.paragraphs[0].alignment = WD_ALIGN_PARAGRAPH.CENTER
+
+    doc.add_paragraph("\n\n")
+
+    # 6. SIGNATURES ET ACCUSÉ DE RÉCEPTION
+    p_signatures = doc.add_paragraph()
+    p_signatures.alignment = WD_ALIGN_PARAGRAPH.LEFT
+    date_texte = donnees['date_creation'].strftime('%d/%m/%Y')
+    run_sig = p_signatures.add_run(f"Sidi bel Abbès le : {date_texte}\t\t\t\tChef de département")
+    run_sig.font.name = 'Calibri'
+    run_sig.font.size = Pt(11)
+    run_sig.bold = True
+
+    doc.add_paragraph("\n\n\n\n")
+
+    p_accuse = doc.add_paragraph()
+    p_accuse.alignment = WD_ALIGN_PARAGRAPH.RIGHT
+    run_accuse = p_accuse.add_run("Accusé de réception    ")
+    run_accuse.font.name = 'Calibri'
+    run_accuse.font.size = Pt(10)
+    run_accuse.font.underline = True
+    run_accuse.bold = True
+
+    return doc
+
+def generer_pv_generique(departement, type_pv, donnees):
+    """Générateur secondaire de secours (Calibri)."""
+    doc = Document()
+    p = doc.add_paragraph()
+    run = p.add_run(f"{type_pv} - {departement}\nDocument en cours.")
+    run.font.name = 'Calibri'
+    return doc
+
+# ==========================================
+# INTERFACE UTILISATEUR STREAMLIT
+# ==========================================
+st.set_page_config(page_title="Générateur ISO Destinataire Dynamique", layout="wide")
+
+st.caption(TITRE_PLATEFORME)
+st.title("Gestion Administrative - Bordereaux & PVs")
+
+col_dept, col_doc = st.columns(2)
+with col_dept:
+    dept_choisi = st.selectbox("Département émetteur :", DEPARTEMENTS)
+with col_doc:
+    doc_choisi = st.selectbox("Nature du document à générer :", TYPES_DOCUMENTS)
+
+st.divider()
+st.subheader(f"Formulaire d'édition - {doc_choisi}")
+
+donnees_doc = {}
+
+if doc_choisi == "Bordereau d'envoi":
+    col_ref, col_date = st.columns(2)
+    with col_ref:
+        donnees_doc['num_reference'] = st.text_input("Référence séquentielle (Ex: 27)", value="27")
+    with col_date:
+        donnees_doc['date_creation'] = st.date_input("Date d'édition", datetime.now())
+        
+    # ----------------------------------------------------
+    # ZONE DESTINATAIRE : SÉLECTEUR ET CHAMP LIBRE DYNAMIQUE
+    # ----------------------------------------------------
+    st.markdown("##### Destinataire officiel")
+    choix_dest = st.selectbox(
+        "Sélectionnez le destinataire dans la liste :", 
+        OPTIONS_DESTINATAIRES,
+        index=0
+    )
+    
+    if choix_dest == "Autres":
+        donnees_doc['destinataire'] = st.text_input("Veuillez saisir la destination personnalisée :", value="")
+    else:
+        donnees_doc['destinataire'] = choix_dest
+        
+    st.markdown("---")
+    st.write("**Configuration du Tableau de Transmission**")
+    
+    df_initial = pd.DataFrame([
+        {"Désignation des pièces": "Fiches de vœux du second semestre", "Nbre": 12, "Observations": "Pour examen"},
+        {"Désignation des pièces": "Procès-verbal de délibération", "Nbre": 2, "Observations": "Pour affichage"}
+    ])
+    
+    df_edite = st.data_editor(
+        df_initial, 
+        num_rows="dynamic", 
+        use_container_width=True,
+        column_config={
+            "Désignation des pièces": st.column_config.TextColumn(width="medium", required=True),
+            "Nbre": st.column_config.NumberColumn(width="small", min_value=1, required=True),
+            "Observations": st.column_config.TextColumn(width="medium")
+        }
+    )
+    donnees_doc['liste_pieces'] = df_edite.to_dict(orient="records")
 
 else:
-    # Fin du parcours
-    st.balloons()
-    speak_arabic("مبروك يا بطلة، لقد أكملت التحدي بنجاح")
-    st.markdown('<div class="word-box" style="font-size:45px !important;">🎊 أحسنتِ يا بطلة!<br>لقد أتقنتِ قواعد الهمزة</div>', unsafe_allow_html=True)
-    st.metric("مجموع نقاطك النهائي", f"{st.session_state.score} / 100")
-    
-    if st.button("🔄 إعادة التحدي من جديد"):
-        st.session_state.score = 0
-        st.session_state.step = 0
-        st.rerun()
+    with st.form("form_autres"):
+        donnees_doc['date_creation'] = st.date_input("Date", datetime.now())
+        donnees_doc['contenu'] = st.text_area("Contenu textuel")
+        st.form_submit_button("Valider")
 
-# Pied de page
-st.markdown("---")
-st.caption("© 2026 جميع الحقوق محفوظة لمنصة بَرَاعِم لُغَتي - كلية الآداب والفنون - UDL-SBA")
+# Action finale de compilation
+if doc_choisi == "Bordereau d'envoi":
+    if st.button("Compiler et Générer le Bordereau Officiel"):
+        # Blocage de sécurité si le choix "Autres" est laissé vide
+        if not donnees_doc['destinataire'].strip():
+            st.error("Erreur : Le champ de destination personnalisée ne peut pas être vide.")
+        else:
+            try:
+                document_final = generer_bordereau_iso(dept_choisi, donnees_doc)
+                
+                output_stream = io.BytesIO()
+                document_final.save(output_stream)
+                output_stream.seek(0)
+                
+                st.success("✓ Bordereau généré avec succès avec le destinataire sélectionné.")
+                
+                nom_fichier_export = f"Bordereau_{dept_choisi.replace(' ', '_')}.docx"
+                st.download_button(
+                    label="⬇️ Télécharger le document (.docx)",
+                    data=output_stream,
+                    file_name=nom_fichier_export,
+                    mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+                )
+            except Exception as error:
+                st.error(f"Échec de l'opération de génération : {str(error)}")
