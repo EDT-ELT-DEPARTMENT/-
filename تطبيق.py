@@ -619,4 +619,17 @@ elif doc_choisi == "Justification d'absence":
             st.error("Erreur : Le nom de l'étudiant ne peut pas être vide.")
         else:
             try:
-                document_final = generer_justificatif_iso(dept_choisi
+                document_final = generer_justificatif_iso(dept_choisi, donnees_doc)
+                output_stream = io.BytesIO()
+                document_final.save(output_stream)
+                output_stream.seek(0)
+                
+                st.success("✓ Justification d'absence générée avec succès (Grille ISO stricte 1.19 / 3.7 / 1.4).")
+                st.download_button(
+                    label="⬇️ Télécharger le justificatif (.docx)",
+                    data=output_stream,
+                    file_name=f"Justification_Absence_{donnees_doc['nom_prenom'].replace(' ', '_')}.docx",
+                    mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+                )
+            except Exception as error:
+                st.error(f"Échec de l'opération de génération : {str(error)}")
