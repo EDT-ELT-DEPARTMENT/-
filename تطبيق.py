@@ -118,7 +118,7 @@ def initialiser_paragraphe_strict(p):
     p.paragraph_format.line_spacing = 1.0
 
 def appliquer_structure_pages_sans_ref(doc):
-    """Configure les marges globales et la pagination épurée à droite dans le pied de page."""
+    """Configure les marges globales et positionne le numéro de page à l'extrémité droite du pied de page."""
     for section in doc.sections:
         section.top_margin = Inches(0.8)
         section.bottom_margin = Inches(0.8)
@@ -130,25 +130,16 @@ def appliquer_structure_pages_sans_ref(doc):
         footer = section.footer
         footer_p = footer.paragraphs[0]
         initialiser_paragraphe_strict(footer_p)
-        footer_p.alignment = WD_ALIGN_PARAGRAPH.LEFT
         
-        footer_pPr = footer_p._p.get_or_add_pPr()
-        tabs = OxmlElement('w:tabs')
-        
-        tab_droite = OxmlElement('w:tab')
-        tab_droite.set(qn('w:val'), 'right')
-        tab_droite.set(qn('w:pos'), '9936')
-        tabs.append(tab_droite)
-        footer_pPr.append(tabs)
-        
-        footer_p.add_run("\t")
+        # Aligner à droite pour forcer l'écriture à l'extrémité droite absolue
+        footer_p.alignment = WD_ALIGN_PARAGRAPH.RIGHT
         
         r_page_actuelle = footer_p.add_run()
         r_page_actuelle.font.name = 'Calibri'
         r_page_actuelle.font.size = Pt(11)
         ajouter_champ_page(r_page_actuelle, "PAGE")
         
-        r_separateur = footer_p.add_run("/")
+        r_separateur = footer_p.add_run(" / ")
         r_separateur.font.name = 'Calibri'
         r_separateur.font.size = Pt(11)
         
@@ -222,15 +213,12 @@ def generer_justificatif_iso(departement, donnees):
     grid_table = doc.add_table(rows=2, cols=3)
     grid_table.alignment = WD_TABLE_ALIGNMENT.CENTER
     
-    # Désactivation stricte de l'ajustement automatique du moteur Word
     grid_table.autofit = False
     grid_table.allow_autofit = False
     
-    # 1 pouce = 1440 dxa (Données exactes demandées : 1.19" | 3.70" | 1.40")
     dxa_widths = [int(1.19 * 1440), int(3.70 * 1440), int(1.40 * 1440)]
     inch_widths = [Inches(1.19), Inches(3.70), Inches(1.40)]
     
-    # Injection stricte de la grille de définition des colonnes (w:tblGrid) au niveau XML
     tblPr = grid_table._tbl.tblPr
     tblGrid = OxmlElement('w:tblGrid')
     for width_dxa in dxa_widths:
@@ -239,13 +227,11 @@ def generer_justificatif_iso(departement, donnees):
         tblGrid.append(gridCol)
     grid_table._tbl.insert(1, tblGrid)
 
-    # Application forcée des dimensions par cellule au niveau XML (w:tcW) pour contrer le texte
     for row in grid_table.rows:
         for idx, width_inch in enumerate(inch_widths):
             cell = row.cells[idx]
             cell.width = width_inch
             
-            # Forcer la largeur brute dans les propriétés XML de la cellule
             tcPr = cell._tc.get_or_add_tcPr()
             tcW = OxmlElement('w:tcW')
             tcW.set(qn('w:w'), str(dxa_widths[idx]))
@@ -261,11 +247,7 @@ def generer_justificatif_iso(departement, donnees):
     cell_meta_haut = grid_table.cell(0, 2)
     cell_meta_bas = grid_table.cell(1, 2)
     
-    # Fusion manuelle via XML pour garantir l'application du quadrillage complet sur les cellules fusionnées
-    cell_logo_haut.merge(cell_logo_bas)
-    cell_meta_haut.merge(cell_meta_bas)
-    
-    # Formatage final et application du quadrillage complet sur chaque cellule individuelle
+    # Application obligatoire des bordures complètes sur chaque cellule constitutive AVANT fusion
     for row in grid_table.rows:
         for cell in row.cells:
             set_cell_margins(cell, top=60, bottom=60, left=100, right=100)
@@ -274,7 +256,17 @@ def generer_justificatif_iso(departement, donnees):
             for p in cell.paragraphs:
                 initialiser_paragraphe_strict(p)
 
-    # Insertion du contenu - Logo aux dimensions strictes en pouces (Hauteur: 0.94 inch, Largeur: 0.58 inch)
+    # Fusion physique des rectangles latéraux (moteur Word)
+    cell_logo_haut.merge(cell_logo_bas)
+    cell_meta_haut.merge(cell_meta_bas)
+    
+    # Ré-application des bordures après fusion pour écraser les masquages du layout de Word
+    appliquer_bordure_cellule_noire(cell_logo_haut)
+    appliquer_bordure_cellule_noire(cell_logo_bas)
+    appliquer_bordure_cellule_noire(cell_meta_haut)
+    appliquer_bordure_cellule_noire(cell_meta_bas)
+
+    # Insertion du contenu - Logo
     p_logo = cell_logo_haut.paragraphs[0]
     p_logo.alignment = WD_ALIGN_PARAGRAPH.CENTER
     nom_fichier_logo = "logo.PNG"
@@ -286,7 +278,7 @@ def generer_justificatif_iso(departement, donnees):
         r_alt.font.size = Pt(11)
         r_alt.font.italic = True
 
-    # Insertion du contenu - Université (Cellule centrale supérieure en Calibri 11)
+    # Insertion du contenu - Université
     p_univ = cell_univ_haut.paragraphs[0]
     p_univ.alignment = WD_ALIGN_PARAGRAPH.CENTER
     re1 = p_univ.add_run("Université Djillali Liabes\n")
@@ -296,7 +288,7 @@ def generer_justificatif_iso(departement, donnees):
         re.font.name = 'Calibri'
         re.font.size = Pt(11)
 
-    # Insertion du contenu - Titre (Cellule centrale inférieure en ARIAL 11 STRICT GRAS)
+    # Insertion du contenu - Titre (ARIAL 11 STRICT GRAS)
     p_titre = cell_titre_bas.paragraphs[0]
     p_titre.alignment = WD_ALIGN_PARAGRAPH.CENTER
     rc = p_titre.add_run("JUSTIFICATION D’ABSENCE")
@@ -304,7 +296,7 @@ def generer_justificatif_iso(departement, donnees):
     rc.font.size = Pt(11)
     rc.bold = True
 
-    # Insertion du contenu - Métadonnées ISO (Cellule droite de 1.4 inch en Calibri 11)
+    # Insertion du contenu - Métadonnées ISO
     p_meta = cell_meta_haut.paragraphs[0]
     p_meta.alignment = WD_ALIGN_PARAGRAPH.LEFT
     rm1 = p_meta.add_run("Code : PPER.06\n")
@@ -318,7 +310,7 @@ def generer_justificatif_iso(departement, donnees):
     p_esp1 = doc.add_paragraph()
     initialiser_paragraphe_strict(p_esp1)
     
-    # Bloc structure académique (Calibri 11)
+    # Bloc structure académique
     p_fac = doc.add_paragraph()
     initialiser_paragraphe_strict(p_fac)
     rfac = p_fac.add_run("Faculté de génie Electrique\n")
@@ -341,7 +333,7 @@ def generer_justificatif_iso(departement, donnees):
     p_esp3 = doc.add_paragraph()
     initialiser_paragraphe_strict(p_esp3)
     
-    # Formulaire d'identification de l'étudiant absent (Calibri 11)
+    # Formulaire d'identification de l'étudiant absent
     p_id = doc.add_paragraph()
     initialiser_paragraphe_strict(p_id)
     
@@ -370,7 +362,7 @@ def generer_justificatif_iso(departement, donnees):
     p_esp4 = doc.add_paragraph()
     initialiser_paragraphe_strict(p_esp4)
     
-    # Grille des motifs réglementaires (Calibri 11)
+    # Grille des motifs réglementaires
     p_motif_titre = doc.add_paragraph()
     initialiser_paragraphe_strict(p_motif_titre)
     r_mot_titre = p_motif_titre.add_run("Pour le motif suivant :")
@@ -642,7 +634,7 @@ else:
 st.markdown("<br>", unsafe_allow_html=True)
 
 # ==========================================
-# GESTION DES ACTIONS ET ACTIONS FINALES
+# GESTION DES ACTIONS FINALES
 # ==========================================
 if doc_choisi == "Bordereau d'envoi":
     if st.button("Compiler et Générer le Bordereau Officiel"):
@@ -676,7 +668,7 @@ elif doc_choisi == "Justification d'absence":
                 document_final.save(output_stream)
                 output_stream.seek(0)
                 
-                st.success("✓ Justification d'absence générée avec succès (Quadrillage complet & Cartouche verrouillé XML à 3.70\").")
+                st.success("✓ Justification d'absence générée avec succès (Quadrillage complet des rectangles & Pagination à l'extrémité droite).")
                 st.download_button(
                     label="⬇️ Télécharger le justificatif (.docx)",
                     data=output_stream,
