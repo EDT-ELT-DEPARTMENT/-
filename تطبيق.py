@@ -432,7 +432,7 @@ def generer_justificatif_iso(departement, donnees):
     r_mot_titre = p_motif_titre.add_run("Pour le motif suivant :")
     r_mot_titre.bold = True
     r_mot_titre.font.name = 'Calibri'
-    r_mot_titre.font.size = Pt(11)
+    r_mot_titre.font.size = Pt(12)
     
     for motif in MOTIFS_ABSENCE:
         p_m = doc.add_paragraph()
@@ -446,9 +446,9 @@ def generer_justificatif_iso(departement, donnees):
         r_txt = p_m.add_run(motif)
         
         r_box.font.name = 'Calibri'
-        r_box.font.size = Pt(11)
+        r_box.font.size = Pt(12)
         r_txt.font.name = 'Calibri'
-        r_txt.font.size = Pt(11)
+        r_txt.font.size = Pt(12)
         
     p_esp5 = doc.add_paragraph()
     initialiser_paragraphe_strict(p_esp5)
