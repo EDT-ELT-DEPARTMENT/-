@@ -387,4 +387,249 @@ def generer_bordereau_iso(departement, donnees):
     p_ref = doc.add_paragraph()
     initialiser_paragraphe_strict(p_ref)
     p_ref.alignment = WD_ALIGN_PARAGRAPH.LEFT
-    r_ref = p_ref.add_run(f"N° : {donnees
+    r_ref = p_ref.add_run(f"N° : {donnees['num_reference']}/ F.G.E/ V.D.E.Q.L.E/2026")
+    r_ref.font.size = Pt(11)
+    r_ref.font.name = 'Calibri'
+    r_ref.bold = True
+
+    p_esp1 = doc.add_paragraph()
+    initialiser_paragraphe_strict(p_esp1)
+
+    p_titre = doc.add_paragraph()
+    initialiser_paragraphe_strict(p_titre)
+    p_titre.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    r_titre = p_titre.add_run("BORDEREAU D’ENVOI")
+    r_titre.font.name = 'Calibri'
+    r_titre.font.size = Pt(11)
+    r_titre.underline = True
+    r_titre.bold = True
+    
+    p_esp2 = doc.add_paragraph()
+    initialiser_paragraphe_strict(p_esp2)
+
+    p_dest = doc.add_paragraph()
+    initialiser_paragraphe_strict(p_dest)
+    p_dest.alignment = WD_ALIGN_PARAGRAPH.LEFT
+    r_dest = p_dest.add_run(f"A monsieur : {donnees['destinataire']}")
+    r_dest.bold = True
+    r_dest.font.size = Pt(11)
+    r_dest.font.name = 'Calibri'
+
+    p_esp3 = doc.add_paragraph()
+    initialiser_paragraphe_strict(p_esp3)
+
+    liste_pieces = donnees['liste_pieces']
+    nb_lignes_totatles = 2 + len(liste_pieces)
+    
+    table = doc.add_table(rows=nb_lignes_totatles, cols=3)
+    table.style = 'Table Grid'
+    table.columns[0].width = Inches(4.5)
+    table.columns[1].width = Inches(0.8)
+    table.columns[2].width = Inches(1.7)
+
+    hdr_cells = table.rows[0].cells
+    hdr_cells[0].text = "Désignation des pièces"
+    hdr_cells[1].text = "Nbre"
+    hdr_cells[2].text = "Observations"
+    
+    for cell in hdr_cells:
+        p_hdr = cell.paragraphs[0]
+        initialiser_paragraphe_strict(p_hdr)
+        p_hdr.alignment = WD_ALIGN_PARAGRAPH.CENTER
+        p_hdr.runs[0].font.bold = True
+        p_hdr.runs[0].font.name = 'Calibri'
+        p_hdr.runs[0].font.size = Pt(11)
+        set_cell_margins(cell, top=60, bottom=60)
+
+    row_joint = table.rows[1].cells
+    row_joint[0].text = "Veuillez trouver ci-joint :"
+    p_j = row_joint[0].paragraphs[0]
+    initialiser_paragraphe_strict(p_j)
+    p_j.runs[0].font.italic = True
+    p_j.runs[0].font.name = 'Calibri'
+    p_j.runs[0].font.size = Pt(11)
+    set_cell_margins(row_joint[0], top=60, bottom=60)
+
+    for index, piece in enumerate(liste_pieces):
+        row_idx = 2 + index
+        current_row = table.rows[row_idx].cells
+        current_row[0].text = str(piece["Désignation des pièces"])
+        current_row[1].text = str(piece["Nbre"])
+        current_row[2].text = str(piece["Observations"])
+        
+        for i, cell in enumerate(current_row):
+            p_c = cell.paragraphs[0]
+            initialiser_paragraphe_strict(p_c)
+            set_cell_margins(cell, top=60, bottom=60)
+            if len(p_c.runs) > 0:
+                p_c.runs[0].font.name = 'Calibri'
+                p_c.runs[0].font.size = Pt(11)
+            if i == 1:
+                p_c.alignment = WD_ALIGN_PARAGRAPH.CENTER
+
+    p_esp4 = doc.add_paragraph()
+    initialiser_paragraphe_strict(p_esp4)
+
+    p_signatures = doc.add_paragraph()
+    initialiser_paragraphe_strict(p_signatures)
+    p_signatures.alignment = WD_ALIGN_PARAGRAPH.LEFT
+    date_texte = donnees['date_creation'].strftime('%d/%m/%Y')
+    run_sig = p_signatures.add_run(f"Chef de département\t\t\t\tSidi bel abbés le : {date_texte}")
+    run_sig.font.name = 'Calibri'
+    run_sig.font.size = Pt(11)
+    run_sig.bold = True
+
+    p_esp5 = doc.add_paragraph()
+    initialiser_paragraphe_strict(p_esp5)
+
+    p_accuse = doc.add_paragraph()
+    initialiser_paragraphe_strict(p_accuse)
+    p_accuse.alignment = WD_ALIGN_PARAGRAPH.RIGHT
+    run_accuse = p_accuse.add_run("Accusé de réception    ")
+    run_accuse.font.name = 'Calibri'
+    run_accuse.font.size = Pt(11)
+    run_accuse.font.underline = True
+    run_accuse.bold = True
+
+    return doc
+
+def generer_pv_generique(departement, type_pv, donnees):
+    """Générateur secondaire de secours (Calibri 11 strict)."""
+    doc = Document()
+    p = doc.add_paragraph()
+    initialiser_paragraphe_strict(p)
+    run = p.add_run(f"{type_pv} - {departement}\nDocument en cours.")
+    run.font.name = 'Calibri'
+    run.font.size = Pt(11)
+    return doc
+
+# ==========================================
+# INTERFACE UTILISATEUR STREAMLIT
+# ==========================================
+st.set_page_config(page_title="Générateur ISO Multi-Documents", layout="wide")
+
+st.caption(TITRE_PLATEFORME)
+st.title("Gestion Administrative - Bordereaux & PVs")
+
+col_dept, col_doc = st.columns(2)
+with col_dept:
+    dept_choisi = st.selectbox("Département émetteur :", DEPARTEMENTS)
+with col_doc:
+    doc_choisi = st.selectbox("Nature du document à générer :", TYPES_DOCUMENTS, index=1)
+
+st.divider()
+st.subheader(f"Formulaire d'édition - {doc_choisi}")
+
+donnees_doc = {}
+
+# --- FORMULAIRE : BORDEREAU D'ENVOI ---
+if doc_choisi == "Bordereau d'envoi":
+    col_ref, col_date = st.columns(2)
+    with col_ref:
+        donnees_doc['num_reference'] = st.text_input("Référence séquentielle (Ex: 27)", value="27")
+    with col_date:
+        donnees_doc['date_creation'] = st.date_input("Date d'édition", datetime.now())
+        
+    st.markdown("##### Destinataire officiel")
+    choix_dest = st.selectbox("Sélectionnez le destinataire dans la liste :", OPTIONS_DESTINATAIRES, index=0)
+    
+    if choix_dest == "Autres":
+        donnees_doc['destinataire'] = st.text_input("Veuillez saisir la destination personnalisée :", value="")
+    else:
+        donnees_doc['destinataire'] = choix_dest
+        
+    st.markdown("---")
+    st.write("**Configuration du Tableau de Transmission**")
+    
+    df_initial = pd.DataFrame([
+        {"Désignation des pièces": "Fiches de vœux du second semestre", "Nbre": 12, "Observations": "Pour examen"},
+        {"Désignation des pièces": "Procès-verbal de délibération", "Nbre": 2, "Observations": "Pour affichage"}
+    ])
+    
+    df_edite = st.data_editor(
+        df_initial, 
+        num_rows="dynamic", 
+        use_container_width=True,
+        column_config={
+            "Désignation des pièces": st.column_config.TextColumn(width="medium", required=True),
+            "Nbre": st.column_config.NumberColumn(width="small", min_value=1, required=True),
+            "Observations": st.column_config.TextColumn(width="medium")
+        }
+    )
+    donnees_doc['liste_pieces'] = df_edite.to_dict(orient="records")
+
+# --- FORMULAIRE : JUSTIFICATION D'ABSENCE ---
+elif doc_choisi == "Justification d'absence":
+    col_nom, col_annee = st.columns(2)
+    with col_nom:
+        donnees_doc['nom_prenom'] = st.text_input("Nom et prénom de l'étudiant(e) :", value="Benali Mohamed")
+    with col_annee:
+        donnees_doc['annee_etude'] = st.text_input("Année d'étude (Ex: 1ère Année Master)", value="2ème Année Master")
+        
+    col_spec, col_motif = st.columns(2)
+    with col_spec:
+        donnees_doc['specialite'] = st.text_input("Spécialité / Option :", value="Réseaux Électriques")
+    with col_motif:
+        donnees_doc['motif_selectionne'] = st.selectbox("Motif réglementaire retenu :", MOTIFS_ABSENCE, index=0)
+        
+    col_d1, col_d2, col_d3 = st.columns(3)
+    with col_d1:
+        donnees_doc['date_debut'] = st.date_input("Date de début de l'absence", datetime.now())
+    with col_d2:
+        donnees_doc['date_fin'] = st.date_input("Date de fin de l'absence", datetime.now())
+    with col_d3:
+        donnees_doc['date_edition'] = st.date_input("Date de délivrance", datetime.now())
+
+# --- FORMULAIRE : PAR DÉFAUT (PVs) ---
+else:
+    with st.form("form_autres"):
+        donnees_doc['date_creation'] = st.date_input("Date", datetime.now())
+        donnees_doc['contenu'] = st.text_area("Contenu textuel")
+        st.form_submit_button("Valider la saisie")
+
+st.markdown("<br>", unsafe_allow_html=True)
+
+# ==========================================
+# GESTION DES ACTIONS ET ACTIONS FINALES
+# ==========================================
+if doc_choisi == "Bordereau d'envoi":
+    if st.button("Compiler et Générer le Bordereau Officiel"):
+        if not donnees_doc['destinataire'].strip():
+            st.error("Erreur : Le champ de destination personnalisée ne peut pas être vide.")
+        else:
+            try:
+                document_final = generer_bordereau_iso(dept_choisi, donnees_doc)
+                output_stream = io.BytesIO()
+                document_final.save(output_stream)
+                output_stream.seek(0)
+                
+                st.success("✓ Bordereau d'envoi généré avec succès (Police 11 pt strict).")
+                st.download_button(
+                    label="⬇️ Télécharger le Bordereau d'envoi (.docx)",
+                    data=output_stream,
+                    file_name=f"Bordereau_{dept_choisi.replace(' ', '_')}.docx",
+                    mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+                )
+            except Exception as error:
+                st.error(f"Échec de l'opération de génération : {str(error)}")
+
+elif doc_choisi == "Justification d'absence":
+    if st.button("Compiler et Générer la Justification d'Absence"):
+        if not donnees_doc['nom_prenom'].strip():
+            st.error("Erreur : Le nom de l'étudiant ne peut pas être vide.")
+        else:
+            try:
+                document_final = generer_justificatif_iso(dept_choisi, donnees_doc)
+                output_stream = io.BytesIO()
+                document_final.save(output_stream)
+                output_stream.seek(0)
+                
+                st.success("✓ Justification d'absence générée avec succès (Ligne vide supprimée et interlignes compacts).")
+                st.download_button(
+                    label="⬇️ Télécharger le justificatif (.docx)",
+                    data=output_stream,
+                    file_name=f"Justification_Absence_{donnees_doc['nom_prenom'].replace(' ', '_')}.docx",
+                    mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+                )
+            except Exception as error:
+                st.error(f"Échec de l'opération de génération : {str(error)}")
