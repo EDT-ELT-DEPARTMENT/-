@@ -544,4 +544,336 @@ def generer_bordereau_iso(departement, donnees):
         row_idx = 2 + index
         current_row = table.rows[row_idx].cells
         current_row[0].text = str(piece["Désignation des pièces"])
-        current
+        current_row[1].text = str(piece["Nbre"])
+        current_row[2].text = str(piece["Observations"])
+        
+        for i, cell in enumerate(current_row):
+            p_c = cell.paragraphs[0]
+            initialiser_paragraphe_strict(p_c)
+            set_cell_margins(cell, top=60, bottom=60)
+            if len(p_c.runs) > 0:
+                p_c.runs[0].font.name = 'Calibri'
+                p_c.runs[0].font.size = Pt(11)
+            if i == 1:
+                p_c.alignment = WD_ALIGN_PARAGRAPH.CENTER
+
+    p_esp4 = doc.add_paragraph()
+    initialiser_paragraphe_strict(p_esp4)
+
+    p_signatures = doc.add_paragraph()
+    initialiser_paragraphe_strict(p_signatures)
+    p_signatures.alignment = WD_ALIGN_PARAGRAPH.LEFT
+    date_texte = donnees['date_creation'].strftime('%d/%m/%Y')
+    run_sig = p_signatures.add_run(f"Chef de département\t\t\t\tSidi bel abbés le : {date_texte}")
+    run_sig.font.name = 'Calibri'
+    run_sig.font.size = Pt(11)
+    run_sig.bold = True
+
+    p_esp5 = doc.add_paragraph()
+    initialiser_paragraphe_strict(p_esp5)
+
+    p_accuse = doc.add_paragraph()
+    initialiser_paragraphe_strict(p_accuse)
+    p_accuse.alignment = WD_ALIGN_PARAGRAPH.RIGHT
+    run_accuse = p_accuse.add_run("Accusé de réception    ")
+    run_accuse.font.name = 'Calibri'
+    run_accuse.font.size = Pt(11)
+    run_accuse.font.underline = True
+    run_accuse.bold = True
+
+    return doc
+
+# ==========================================
+# INTERFACE UTILISATEUR STREAMLIT
+# ==========================================
+st.set_page_config(page_title="Générateur ISO Multi-Documents", layout="wide")
+
+st.caption(TITRE_PLATEFORME)
+st.title("Gestion Administrative - Générateurs de documents")
+
+col_dept, col_doc = st.columns(2)
+with col_dept:
+    dept_choisi = st.selectbox("Département émetteur :", DEPARTEMENTS)
+with col_doc:
+    doc_choisi = st.selectbox("Nature du document à générer :", TYPES_DOCUMENTS, index=1)
+
+st.divider()
+
+tab_formulaire, tab_historique = st.tabs(["📝 Édition du Document", "📊 Historique & Compteur d'Exclusions"])
+
+with tab_formulaire:
+    st.subheader(f"Formulaire d'édition - {doc_choisi}")
+    donnees_doc = {}
+
+    # --- FORMULAIRE : BORDEREAU D'ENVOI ---
+    if doc_choisi == "Bordereau d'envoi":
+        col_ref, col_date = st.columns(2)
+        with col_ref:
+            donnees_doc['num_reference'] = st.text_input("Référence séquentielle (Ex: 27)", value="27")
+        with col_date:
+            donnees_doc['date_creation'] = st.date_input("Date d'édition", datetime.now())
+            
+        st.markdown("##### Destinataire officiel")
+        choix_dest = st.selectbox("Sélectionnez le destinataire dans la liste :", OPTIONS_DESTINATAIRES, index=0)
+        
+        if choix_dest == "Autres":
+            donnees_doc['destinataire'] = st.text_input("Veuillez saisir la destination personnalisée :", value="")
+        else:
+            donnees_doc['destinataire'] = choix_dest
+            
+        st.markdown("---")
+        st.write("**Configuration du Tableau de Transmission**")
+        
+        df_initial = pd.DataFrame([
+            {"Désignation des pièces": "Fiches de vœux du second semestre", "Nbre": 12, "Observations": "Pour examen"},
+            {"Désignation des pièces": "Procès-verbal de délibération", "Nbre": 2, "Observations": "Pour affichage"}
+        ])
+        
+        df_edite = st.data_editor(
+            df_initial, 
+            num_rows="dynamic", 
+            use_container_width=True,
+            column_config={
+                "Désignation des pièces": st.column_config.TextColumn(width="medium", required=True),
+                "Nbre": st.column_config.NumberColumn(width="small", min_value=1, required=True),
+                "Observations": st.column_config.TextColumn(width="medium")
+            }
+        )
+        donnees_doc['liste_pieces'] = df_edite.to_dict(orient="records")
+
+    # --- FORMULAIRE : JUSTIFICATION D'ABSENCE ---
+    elif doc_choisi == "Justification d'absence":
+        col_nom, col_annee = st.columns(2)
+        with col_nom:
+            donnees_doc['nom_prenom'] = st.text_input("Nom et prénom de l'étudiant(e) :", value="Benali Mohamed")
+        with col_annee:
+            donnees_doc['annee_etude'] = st.selectbox(
+                "Année d'étude (Ex: 1ère Année Master) :", 
+                LISTE_ANNEES_ETUDE, 
+                index=1
+            )
+            
+        col_spec, col_motif = st.columns(2)
+        with col_spec:
+            donnees_doc['specialite'] = st.selectbox(
+                "Spécialité / Option :", 
+                LISTE_SPECIALITES, 
+                index=0
+            )
+        with col_motif:
+            donnees_doc['motif_selectionne'] = st.selectbox("Motif réglementaire retenu :", MOTIFS_ABSENCE, index=0)
+            
+        st.markdown("##### Information Complémentaires (Enseignant & Enseignement)")
+        col_ens, col_mat = st.columns(2)
+        
+        with col_ens:
+            liste_nom_enseignants = sorted(list(DATA_ENSEIGNANTS.keys()))
+            index_par_defaut = liste_nom_enseignants.index("Bellebna") if "Bellebna" in liste_nom_enseignants else 0
+            enseignant_choisi = st.selectbox("Enseignant ayant déclaré l'absence :", liste_nom_enseignants, index=index_par_defaut)
+            donnees_doc['enseignant'] = enseignant_choisi
+            
+        with col_mat:
+            liste_matieres_disponibles = sorted(DATA_ENSEIGNANTS[enseignant_choisi])
+            matiere_choisie = st.selectbox("Matière concernée :", liste_matieres_disponibles)
+            donnees_doc['matiere'] = matiere_choisie
+
+        col_d1, col_d2, col_d3 = st.columns(3)
+        with col_d1:
+            donnees_doc['date_debut'] = st.date_input("Date de début de l'absence", datetime.now())
+        with col_d2:
+            donnees_doc['date_fin'] = st.date_input("Date de fin de l'absence", datetime.now())
+        with col_d3:
+            donnees_doc['date_edition'] = st.date_input("Date de délivrance", datetime.now())
+
+        nom_etudiant_clean = donnees_doc['nom_prenom'].strip()
+        if nom_etudiant_clean:
+            nb_absences_actuelles = st.session_state["compteur_absences"].get(nom_etudiant_clean, 0)
+            if nb_absences_actuelles >= 5:
+                st.error(f"⚠️ ATTENTION CRITIQUE : L'étudiant '{nom_etudiant_clean}' compte déjà {nb_absences_actuelles} absences justifiées. Il est déclaré EXCLU.")
+            elif nb_absences_actuelles > 0:
+                st.warning(f"Note : Cet étudiant possède actuellement {nb_absences_actuelles} absence(s) enregistrée(s).")
+
+    else:
+        with st.form("form_autres"):
+            donnees_doc['date_creation'] = st.date_input("Date", datetime.now())
+            donnees_doc['contenu'] = st.text_area("Contenu textuel")
+            st.form_submit_button("Valider la saisie")
+
+    st.markdown("<br>", unsafe_allow_html=True)
+
+    # ==========================================
+    # GESTION DES ACTIONS FINALES & COMPILATION
+    # ==========================================
+    if doc_choisi == "Bordereau d'envoi":
+        if st.button("Compiler et Générer le Bordereau Officiel"):
+            if not donnees_doc['destinataire'].strip():
+                st.error("Erreur : Le champ de destination personnalisée ne peut pas être vide.")
+            else:
+                try:
+                    document_final = generer_bordereau_iso(dept_choisi, donnees_doc)
+                    output_stream = io.BytesIO()
+                    document_final.save(output_stream)
+                    output_stream.seek(0)
+                    
+                    st.success("✓ Bordereau d'envoi généré avec succès.")
+                    st.download_button(
+                        label="⬇️ Télécharger le Bordereau d'envoi (.docx)",
+                        data=output_stream,
+                        file_name=f"Bordereau_{dept_choisi.replace(' ', '_')}.docx",
+                        mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+                    )
+                except Exception as error:
+                    st.error(f"Échec de l'opération de génération : {str(error)}")
+
+    elif doc_choisi == "Justification d'absence":
+        if st.button("Compiler et Générer la Justification d'Absence"):
+            if not donnees_doc['nom_prenom'].strip():
+                st.error("Erreur : Le nom de l'étudiant ne peut pas être vide.")
+            else:
+                try:
+                    nom_etudiant = donnees_doc['nom_prenom'].strip()
+                    
+                    document_final = generer_justificatif_iso(dept_choisi, donnees_doc)
+                    output_stream = io.BytesIO()
+                    document_final.save(output_stream)
+                    output_stream.seek(0)
+                    
+                    # Incrémentation du compteur global
+                    st.session_state["compteur_absences"][nom_etudiant] = st.session_state["compteur_absences"].get(nom_etudiant, 0) + 1
+                    total_absences = st.session_state["compteur_absences"][nom_etudiant]
+                    
+                    # Sauvegarde des métadonnées contextuelles de la dernière absence pour l'export des exclus
+                    st.session_state["metadonnees_absences"][nom_etudiant] = {
+                        "date_absence": donnees_doc['date_debut'].strftime('%d/%m/%Y'),
+                        "date_delivrance": donnees_doc['date_edition'].strftime('%d/%m/%Y'),
+                        "enseignant": donnees_doc['enseignant'],
+                        "matiere": donnees_doc['matiere']
+                    }
+                    
+                    # Insertion dans l'historique global de session
+                    enregistrement_historique = {
+                        "Date Opération": datetime.now().strftime("%d/%m/%Y %H:%M"),
+                        "Étudiant": nom_etudiant,
+                        "Année d'étude": donnees_doc['annee_etude'],
+                        "Spécialité": donnees_doc['specialite'],
+                        "Enseignant": donnees_doc['enseignant'],
+                        "Matière": donnees_doc['matiere'],
+                        "Motif": donnees_doc['motif_selectionne'],
+                        "Total Absences Cumulées": total_absences,
+                        "Statut": "EXCLU" if total_absences >= 5 else "Actif"
+                    }
+                    st.session_state["historique_justifications"].append(enregistrement_historique)
+                    
+                    st.success(f"✓ Justification validée (Absence n°{total_absences} enregistrée).")
+                    
+                    if total_absences >= 5:
+                        st.error(f"🚨 Seuil critique atteint ou dépassé ! L'étudiant {nom_etudiant} est déclaré EXCLU.")
+                        
+                    st.download_button(
+                        label="⬇️ Télécharger le justificatif (.docx)",
+                        data=output_stream,
+                        file_name=f"Justification_Absence_{nom_etudiant.replace(' ', '_')}.docx",
+                        mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+                    )
+                except Exception as error:
+                    st.error(f"Échec de l'opération de génération : {str(error)}")
+
+with tab_historique:
+    st.subheader("📋 Historique Global des Étudiants Justifiés")
+    
+    if len(st.session_state["historique_justifications"]) == 0:
+        st.info("Aucune justification d'absence n'a encore été enregistrée lors de cette session.")
+    else:
+        df_historique = pd.DataFrame(st.session_state["historique_justifications"])
+        st.dataframe(df_historique, use_container_width=True)
+        
+        st.divider()
+        st.subheader("🚨 Tableau de suivi des Seuils d'Exclusion (>= 5 Absences)")
+        
+        donnees_compteur = []
+        donnees_exclus_uniquement = []
+        
+        for etudiant, nb_abs in st.session_state["compteur_absences"].items():
+            meta = st.session_state["metadonnees_absences"].get(etudiant, {"date_absence": "N/A", "date_delivrance": "N/A", "enseignant": "N/A", "matiere": "N/A"})
+            
+            situation = "❌ EXCLU DE LA MATIÈRE" if nb_abs >= 5 else "✅ En règle"
+            
+            ligne_complete = {
+                "Nom & Prénom Étudiant": etudiant,
+                "Date de l'absence": meta["date_absence"],
+                "Date de délivrance": meta["date_delivrance"],
+                "Enseignant": meta["enseignant"],
+                "Matière": meta["matiere"],
+                "Nombre d'absences comptabilisées": nb_abs,
+                "Situation Réglementaire": situation
+            }
+            donnees_compteur.append(ligne_complete)
+            
+            # Filtrage pour la liste dédiée des exclus
+            if nb_abs >= 5:
+                donnees_exclus_uniquement.append(ligne_complete)
+            
+        df_compteur = pd.DataFrame(donnees_compteur)
+        df_exclus = pd.DataFrame(donnees_exclus_uniquement)
+        
+        def styliser_tableau(val):
+            color = 'background-color: #ffcccc; color: #cc0000; font-weight: bold;' if "EXCLU" in str(val) else ''
+            return color
+            
+        st.dataframe(df_compteur.style.map(styliser_tableau, subset=["Situation Réglementaire"]), use_container_width=True)
+        
+        # --- SECTION EXPORTATION DES ETUDIANTS EXCLUS ---
+        st.markdown("### 💾 Extraction et Téléchargement de la Liste des Exclus")
+        
+        if df_exclus.empty:
+            st.info("Aucun étudiant n'a atteint le seuil d'exclusion (5 absences) pour le moment. Les fonctions d'exports s'activeront dès l'apparition d'un cas d'exclusion.")
+        else:
+            st.warning(f"Total détecté : {len(df_exclus)} étudiant(s) sous le coup d'une mesure d'exclusion réglementaire.")
+            
+            col_btn_excel, col_btn_html = st.columns(2)
+            
+            # Génération du flux Excel en mémoire
+            with col_btn_excel:
+                buffer_excel = io.BytesIO()
+                with pd.ExcelWriter(buffer_excel, engine='openpyxl') as writer:
+                    df_exclus.to_excel(writer, index=False, sheet_name='Liste_des_Exclus')
+                buffer_excel.seek(0)
+                
+                st.download_button(
+                    label="📥 Télécharger la Liste des Exclus en format Excel (.xlsx)",
+                    data=buffer_excel,
+                    file_name=f"Liste_Etudiants_Exclus_{datetime.now().strftime('%d_%m_%Y')}.xlsx",
+                    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                    use_container_width=True
+                )
+                
+            # Génération du fichier HTML stylisé en mémoire
+            with col_btn_html:
+                html_style = """
+                <style>
+                    table { border-collapse: collapse; width: 100%; font-family: 'Calibri', sans-serif; margin-top: 20px; }
+                    th { background-color: #cc0000; color: white; padding: 10px; text-align: left; border: 1px solid #333; }
+                    td { padding: 8px; border: 1px solid #666; }
+                    tr:nth-child(even) { background-color: #f2f2f2; }
+                    .title { font-family: 'Arial', sans-serif; color: #333; font-size: 18px; font-weight: bold; text-align: center; margin-bottom: 5px; }
+                    .subtitle { font-family: 'Calibri', sans-serif; color: #555; text-align: center; font-size: 13px; margin-bottom: 25px; }
+                    .badge-exclu { color: #cc0000; font-weight: bold; background-color: #ffcccc; padding: 4px; border-radius: 3px; }
+                </style>
+                """
+                
+                html_titre_bloc = f'<div class="title">RÉPUBLIQUE ALGÉRIENNE DÉMOCRATIQUE ET POPULAIRE</div>'
+                html_titre_bloc += f'<div class="subtitle">{TITRE_PLATEFORME}<br>LISTE OFFICIELLE DES ÉTUDIANTS EXCLUS - SEMESTRE 2</div>'
+                
+                # Conversion du dataframe en table HTML brute puis injection des classes de style
+                html_table_brute = df_exclus.to_html(index=False)
+                html_table_brute = html_table_brute.replace('❌ EXCLU DE LA MATIÈRE', '<span class="badge-exclu">❌ EXCLU DE LA MATIÈRE</span>')
+                
+                html_document_complet = f"<html><head><meta charset='utf-8'>{html_style}</head><body>{html_titre_bloc}{html_table_brute}</body></html>"
+                
+                st.download_button(
+                    label="🌐 Télécharger la Liste des Exclus en format HTML (.html)",
+                    data=html_document_complet,
+                    file_name=f"Liste_Etudiants_Exclus_{datetime.now().strftime('%d_%m_%Y')}.html",
+                    mime="text/html",
+                    use_container_width=True
+                )
