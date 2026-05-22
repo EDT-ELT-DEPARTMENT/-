@@ -68,6 +68,16 @@ LISTE_ANNEES_ETUDE = [
 
 NOM_FICHIER_EXCEL = "dataEDT-ELT-S2-2026.xlsx"
 
+COLONNES_SUIVI_OFFICIELRES = [
+    "Nom & Prénom Étudiant",
+    "Date de l'absence",
+    "Date de délivrance",
+    "Enseignant",
+    "Matière",
+    "Nombre d'absences comptabilisées",
+    "Situation Réglementaire"
+]
+
 # ==========================================
 # CHARGEMENT ET TRAITEMENT DU FICHIER SOURCE EXCEL
 # ==========================================
@@ -122,11 +132,9 @@ DATA_ENSEIGNANTS = charger_base_enseignements(NOM_FICHIER_EXCEL)
 if "historique_justifications" not in st.session_state:
     st.session_state["historique_justifications"] = []
 
-# Le compteur d'absences utilise désormais un tuple comme clé unique : (nom_etudiant, enseignant, matiere)
 if "compteur_absences_strict" not in st.session_state:
     st.session_state["compteur_absences_strict"] = {}
 
-# Mémorisation des métadonnées indexées par la clé composite (nom_etudiant, enseignant, matiere)
 if "metadonnees_absences_strict" not in st.session_state:
     st.session_state["metadonnees_absences_strict"] = {}
 
@@ -685,7 +693,6 @@ with tab_formulaire:
         with col_d3:
             donnees_doc['date_edition'] = st.date_input("Date de délivrance", datetime.now())
 
-        # Vérification basée sur le couple strict (étudiant, enseignant, matière)
         nom_etudiant_clean = donnees_doc['nom_prenom'].strip()
         if nom_etudiant_clean:
             cle_composite_verif = (nom_etudiant_clean, donnees_doc['enseignant'], donnees_doc['matiere'])
@@ -738,7 +745,6 @@ with tab_formulaire:
                     ens_concerne = donnees_doc['enseignant']
                     mat_concerne = donnees_doc['matiere']
                     
-                    # Construction de la clé stricte d'interdépendance
                     cle_composite = (nom_etudiant, ens_concerne, mat_concerne)
                     
                     document_final = generer_justificatif_iso(dept_choisi, donnees_doc)
@@ -746,11 +752,9 @@ with tab_formulaire:
                     document_final.save(output_stream)
                     output_stream.seek(0)
                     
-                    # Incrémentation du compteur lié STRICTEMENT à cet enseignant et cette matière
                     st.session_state["compteur_absences_strict"][cle_composite] = st.session_state["compteur_absences_strict"].get(cle_composite, 0) + 1
                     total_absences = st.session_state["compteur_absences_strict"][cle_composite]
                     
-                    # Sauvegarde des métadonnées contextuelles propres à ce binôme enseignant/matière
                     st.session_state["metadonnees_absences_strict"][cle_composite] = {
                         "date_absence": donnees_doc['date_debut'].strftime('%d/%m/%Y'),
                         "date_delivrance": donnees_doc['date_edition'].strftime('%d/%m/%Y'),
@@ -758,7 +762,6 @@ with tab_formulaire:
                         "matiere": mat_concerne
                     }
                     
-                    # Insertion dans l'historique global
                     enregistrement_historique = {
                         "Date Opération": datetime.now().strftime("%d/%m/%Y %H:%M"),
                         "Étudiant": nom_etudiant,
@@ -795,93 +798,100 @@ with tab_historique:
         df_historique = pd.DataFrame(st.session_state["historique_justifications"])
         st.dataframe(df_historique, use_container_width=True)
         
-        st.divider()
-        st.subheader("🚨 Suivi par Matière et Seuils d'Exclusion (>= 5 Absences par matière)")
+    st.divider()
+    st.subheader("🚨 Suivi par Matière et Seuils d'Exclusion (>= 5 Absences par matière)")
+    
+    donnees_compteur = []
+    donnees_exclus_uniquement = []
+    
+    for triplet_cle, nb_abs in st.session_state["compteur_absences_strict"].items():
+        etudiant_nom, ens_nom, mat_nom = triplet_cle
+        meta = st.session_state["metadonnees_absences_strict"].get(triplet_cle, {"date_absence": "N/A", "date_delivrance": "N/A", "enseignant": ens_nom, "matiere": mat_nom})
         
-        donnees_compteur = []
-        donnees_exclus_uniquement = []
+        situation = "❌ EXCLU DE LA MATIÈRE" if nb_abs >= 5 else "✅ En règle"
         
-        # Extraction basée sur la clé composite stricte
-        for triplet_cle, nb_abs in st.session_state["compteur_absences_strict"].items():
-            etudiant_nom, ens_nom, mat_nom = triplet_cle
-            meta = st.session_state["metadonnees_absences_strict"].get(triplet_cle, {"date_absence": "N/A", "date_delivrance": "N/A", "enseignant": ens_nom, "matiere": mat_nom})
-            
-            situation = "❌ EXCLU DE LA MATIÈRE" if nb_abs >= 5 else "✅ En règle"
-            
-            ligne_complete = {
-                "Nom & Prénom Étudiant": etudiant_nom,
-                "Date de l'absence": meta["date_absence"],
-                "Date de délivrance": meta["date_delivrance"],
-                "Enseignant": meta["enseignant"],
-                "Matière": meta["matiere"],
-                "Nombre d'absences comptabilisées": nb_abs,
-                "Situation Réglementaire": situation
-            }
-            donnees_compteur.append(ligne_complete)
-            
-            if nb_abs >= 5:
-                donnees_exclus_uniquement.append(ligne_complete)
-            
+        ligne_complete = {
+            "Nom & Prénom Étudiant": etudiant_nom,
+            "Date de l'absence": meta["date_absence"],
+            "Date de délivrance": meta["date_delivrance"],
+            "Enseignant": meta["enseignant"],
+            "Matière": meta["matiere"],
+            "Nombre d'absences comptabilisées": nb_abs,
+            "Situation Réglementaire": situation
+        }
+        donnees_compteur.append(ligne_complete)
+        
+        if nb_abs >= 5:
+            donnees_exclus_uniquement.append(ligne_complete)
+        
+    # Résolution du KeyError : Initialisation structurelle robuste avec colonnes prédéfinies
+    if donnees_compteur:
         df_compteur = pd.DataFrame(donnees_compteur)
+    else:
+        df_compteur = pd.DataFrame(columns=COLONNES_SUIVI_OFFICIELRES)
+
+    if donnees_exclus_uniquement:
         df_exclus = pd.DataFrame(donnees_exclus_uniquement)
+    else:
+        df_exclus = pd.DataFrame(columns=COLONNES_SUIVI_OFFICIELRES)
+    
+    def styliser_tableau(val):
+        color = 'background-color: #ffcccc; color: #cc0000; font-weight: bold;' if "EXCLU" in str(val) else ''
+        return color
         
-        def styliser_tableau(val):
-            color = 'background-color: #ffcccc; color: #cc0000; font-weight: bold;' if "EXCLU" in str(val) else ''
-            return color
-            
-        st.dataframe(df_compteur.style.map(styliser_tableau, subset=["Situation Réglementaire"]), use_container_width=True)
+    st.dataframe(df_compteur.style.map(styliser_tableau, subset=["Situation Réglementaire"]), use_container_width=True)
+    
+    # --- SECTION EXPORTATION DES ETUDIANTS EXCLUS ---
+    st.markdown("### 💾 Extraction et Téléchargement de la Liste des Exclus")
+    
+    if len(donnees_exclus_uniquement) == 0:
+        st.info("Aucun étudiant n'a atteint le seuil d'exclusion (5 absences consécutives/cumulées dans la même matière) pour le moment.")
+    else:
+        st.warning(f"Total détecté : {len(df_exclus)} cas d'exclusion réglementaire par matière.")
         
-        # --- SECTION EXPORTATION DES ETUDIANTS EXCLUS ---
-        st.markdown("### 💾 Extraction et Téléchargement de la Liste des Exclus")
+        col_btn_excel, col_btn_html = st.columns(2)
         
-        if df_exclus.empty:
-            st.info("Aucun étudiant n'a atteint le seuil d'exclusion (5 absences consécutives/cumulées dans la même matière) pour le moment.")
-        else:
-            st.warning(f"Total détecté : {len(df_exclus)} cas d'exclusion réglementaire par matière.")
+        # Génération Excel
+        with col_btn_excel:
+            buffer_excel = io.BytesIO()
+            with pd.ExcelWriter(buffer_excel, engine='openpyxl') as writer:
+                df_exclus.to_excel(writer, index=False, sheet_name='Liste_des_Exclus_Matiere')
+            buffer_excel.seek(0)
             
-            col_btn_excel, col_btn_html = st.columns(2)
+            st.download_button(
+                label="📥 Télécharger la Liste des Exclus en format Excel (.xlsx)",
+                data=buffer_excel,
+                file_name=f"Liste_Exclus_Par_Matiere_{datetime.now().strftime('%d_%m_%Y')}.xlsx",
+                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                use_container_width=True
+            )
             
-            # Génération Excel
-            with col_btn_excel:
-                buffer_excel = io.BytesIO()
-                with pd.ExcelWriter(buffer_excel, engine='openpyxl') as writer:
-                    df_exclus.to_excel(writer, index=False, sheet_name='Liste_des_Exclus_Matiere')
-                buffer_excel.seek(0)
-                
-                st.download_button(
-                    label="📥 Télécharger la Liste des Exclus en format Excel (.xlsx)",
-                    data=buffer_excel,
-                    file_name=f"Liste_Exclus_Par_Matiere_{datetime.now().strftime('%d_%m_%Y')}.xlsx",
-                    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                    use_container_width=True
-                )
-                
-            # Génération HTML
-            with col_btn_html:
-                html_style = """
-                <style>
-                    table { border-collapse: collapse; width: 100%; font-family: 'Calibri', sans-serif; margin-top: 20px; }
-                    th { background-color: #cc0000; color: white; padding: 10px; text-align: left; border: 1px solid #333; }
-                    td { padding: 8px; border: 1px solid #666; }
-                    tr:nth-child(even) { background-color: #f2f2f2; }
-                    .title { font-family: 'Arial', sans-serif; color: #333; font-size: 18px; font-weight: bold; text-align: center; margin-bottom: 5px; }
-                    .subtitle { font-family: 'Calibri', sans-serif; color: #555; text-align: center; font-size: 13px; margin-bottom: 25px; }
-                    .badge-exclu { color: #cc0000; font-weight: bold; background-color: #ffcccc; padding: 4px; border-radius: 3px; }
-                </style>
-                """
-                
-                html_titre_bloc = f'<div class="title">RÉPUBLIQUE ALGÉRIENNE DÉMOCRATIQUE ET POPULAIRE</div>'
-                html_titre_bloc += f'<div class="subtitle">{TITRE_PLATEFORME}<br>LISTE DES EXCLUS UNITAIRES PAR COUPLE (ENSEIGNANT / MATIÈRE)</div>'
-                
-                html_table_brute = df_exclus.to_html(index=False)
-                html_table_brute = html_table_brute.replace('❌ EXCLU DE LA MATIÈRE', '<span class="badge-exclu">❌ EXCLU DE LA MATIÈRE</span>')
-                
-                html_document_complet = f"<html><head><meta charset='utf-8'>{html_style}</head><body>{html_titre_bloc}{html_table_brute}</body></html>"
-                
-                st.download_button(
-                    label="🌐 Télécharger la Liste des Exclus en format HTML (.html)",
-                    data=html_document_complet,
-                    file_name=f"Liste_Exclus_Par_Matiere_{datetime.now().strftime('%d_%m_%Y')}.html",
-                    mime="text/html",
-                    use_container_width=True
-                )
+        # Génération HTML
+        with col_btn_html:
+            html_style = """
+            <style>
+                table { border-collapse: collapse; width: 100%; font-family: 'Calibri', sans-serif; margin-top: 20px; }
+                th { background-color: #cc0000; color: white; padding: 10px; text-align: left; border: 1px solid #333; }
+                td { padding: 8px; border: 1px solid #666; }
+                tr:nth-child(even) { background-color: #f2f2f2; }
+                .title { font-family: 'Arial', sans-serif; color: #333; font-size: 18px; font-weight: bold; text-align: center; margin-bottom: 5px; }
+                .subtitle { font-family: 'Calibri', sans-serif; color: #555; text-align: center; font-size: 13px; margin-bottom: 25px; }
+                .badge-exclu { color: #cc0000; font-weight: bold; background-color: #ffcccc; padding: 4px; border-radius: 3px; }
+            </style>
+            """
+            
+            html_titre_bloc = f'<div class="title">RÉPUBLIQUE ALGÉRIENNE DÉMOCRATIQUE ET POPULAIRE</div>'
+            html_titre_bloc += f'<div class="subtitle">{TITRE_PLATEFORME}<br>LISTE DES EXCLUS UNITAIRES PAR COUPLE (ENSEIGNANT / MATIÈRE)</div>'
+            
+            html_table_brute = df_exclus.to_html(index=False)
+            html_table_brute = html_table_brute.replace('❌ EXCLU DE LA MATIÈRE', '<span class="badge-exclu">❌ EXCLU DE LA MATIÈRE</span>')
+            
+            html_document_complet = f"<html><head><meta charset='utf-8'>{html_style}</head><body>{html_titre_bloc}{html_table_brute}</body></html>"
+            
+            st.download_button(
+                label="🌐 Télécharger la Liste des Exclus en format HTML (.html)",
+                data=html_document_complet,
+                file_name=f"Liste_Exclus_Par_Matiere_{datetime.now().strftime('%d_%m_%Y')}.html",
+                mime="text/html",
+                use_container_width=True
+            )
