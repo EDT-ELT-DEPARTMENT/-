@@ -45,9 +45,9 @@ MOTIFS_ABSENCE = [
 ]
 
 LISTE_SPECIALITES = [
-    "Réseeaux électriques",
+    "Réseaux électriques",
     "Energies renouvelables",
-    "commendes électriques",
+    "Commandes électriques",
     "Master-MCIL",
     "Licence_MCIL",
     "Licence_ELT",
