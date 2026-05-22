@@ -136,12 +136,12 @@ def appliquer_structure_pages_sans_ref(doc):
         ajouter_champ_page(r_total_pages, "NUMPAGES")
 
 def inserer_bloc_en_tete_bordereau(doc, departement):
-    """Génère l'en-tête standard classique avec logo pour le Bordereau d'envoi."""
+    """Génère l'en-tête standard classique avec logo redimensionné pour le Bordereau d'envoi."""
     header_table = doc.add_table(rows=1, cols=2)
     header_table.alignment = WD_ALIGN_PARAGRAPH.CENTER
     header_table.autofit = False
-    header_table.columns[0].width = Inches(1.2)
-    header_table.columns[1].width = Inches(5.7)
+    header_table.columns[0].width = Inches(1.19)
+    header_table.columns[1].width = Inches(5.1)
     
     cell_logo = header_table.rows[0].cells[0]
     cell_texte = header_table.rows[0].cells[1]
@@ -160,9 +160,9 @@ def inserer_bloc_en_tete_bordereau(doc, departement):
     
     nom_fichier_logo = "logo.PNG"
     if os.path.exists(nom_fichier_logo):
-        p_logo.add_run().add_picture(nom_fichier_logo, width=Inches(0.833))
+        p_logo.add_run().add_picture(nom_fichier_logo, width=Inches(0.58), height=Inches(0.94))
     else:
-        r_alt = p_logo.add_run("[LOGO UNIVERSITÉ]")
+        r_alt = p_logo.add_run("[LOGO]")
         r_alt.font.name = 'Calibri'
         r_alt.font.size = Pt(11)
         r_alt.font.italic = True
@@ -197,12 +197,14 @@ def generer_justificatif_iso(departement, donnees):
     doc = Document()
     appliquer_structure_pages_sans_ref(doc)
     
-    # Grille à 2 lignes et 3 colonnes pour supprimer la ligne inférieure vide
+    # Configuration géométrique stricte : L:1.19 | C:3.7 | R:1.4 (Total = 6.29 pouces)
     grid_table = doc.add_table(rows=2, cols=3)
     grid_table.alignment = WD_TABLE_ALIGNMENT.CENTER
     grid_table.autofit = False
     
-    widths = [Inches(1.5), Inches(3.7), Inches(1.8)]
+    widths = [Inches(1.19), Inches(3.7), Inches(1.4)]
+    
+    # Application forcée des largeurs par cellule pour éviter toute déformation
     for row in grid_table.rows:
         for i, w in enumerate(widths):
             row.cells[i].width = w
@@ -216,13 +218,11 @@ def generer_justificatif_iso(departement, donnees):
     cell_meta_haut = grid_table.cell(0, 2)
     cell_meta_bas = grid_table.cell(1, 2)
     
-    # 1. Bloc Gauche : Fusion verticale de la colonne du Logo (Lignes 0 et 1)
+    # Fusion verticale réglementaire pour les colonnes latérales (Logo et Métadonnées)
     cell_logo_haut.merge(cell_logo_bas)
-    
-    # 2. Bloc Droit : Fusion verticale de la colonne des Métadonnées (Lignes 0 et 1)
     cell_meta_haut.merge(cell_meta_bas)
     
-    # Configuration stricte de chaque cellule : pas d'espace entre lignes, police 11 Calibri
+    # Formatage de l'ensemble des cellules (marges internes, bordures, interlignes)
     for row in grid_table.rows:
         for cell in row.cells:
             set_cell_margins(cell, top=60, bottom=60, left=100, right=100)
@@ -231,19 +231,19 @@ def generer_justificatif_iso(departement, donnees):
             for p in cell.paragraphs:
                 initialiser_paragraphe_strict(p)
 
-    # Insertion du contenu - Cellule Logo
+    # Insertion du contenu - Logo aux dimensions strictes (Hauteur: 0.94", Largeur: 0.58")
     p_logo = cell_logo_haut.paragraphs[0]
     p_logo.alignment = WD_ALIGN_PARAGRAPH.CENTER
     nom_fichier_logo = "logo.PNG"
     if os.path.exists(nom_fichier_logo):
-        p_logo.add_run().add_picture(nom_fichier_logo, width=Inches(0.85))
+        p_logo.add_run().add_picture(nom_fichier_logo, width=Inches(0.58), height=Inches(0.94))
     else:
         r_alt = p_logo.add_run("[ LOGO ]")
         r_alt.font.name = 'Calibri'
         r_alt.font.size = Pt(11)
         r_alt.font.italic = True
 
-    # Insertion du contenu - Université (Cellule centrale supérieure)
+    # Insertion du contenu - Université (Cellule centrale supérieure en Calibri 11)
     p_univ = cell_univ_haut.paragraphs[0]
     p_univ.alignment = WD_ALIGN_PARAGRAPH.CENTER
     re1 = p_univ.add_run("Université Djillali Liabes\n")
@@ -253,15 +253,15 @@ def generer_justificatif_iso(departement, donnees):
         re.font.name = 'Calibri'
         re.font.size = Pt(11)
 
-    # Insertion du contenu - Titre (Cellule centrale inférieure fractionnée sans ligne en dessous)
+    # Insertion du contenu - Titre (Cellule centrale inférieure en ARIAL 11 STRICT GRAS)
     p_titre = cell_titre_bas.paragraphs[0]
     p_titre.alignment = WD_ALIGN_PARAGRAPH.CENTER
     rc = p_titre.add_run("JUSTIFICATION D’ABSENCE")
-    rc.font.name = 'Calibri'
+    rc.font.name = 'Arial'
     rc.font.size = Pt(11)
     rc.bold = True
 
-    # Insertion du contenu - Métadonnées ISO (Cellule droite)
+    # Insertion du contenu - Métadonnées ISO (Cellule droite de 1.4" en Calibri 11)
     p_meta = cell_meta_haut.paragraphs[0]
     p_meta.alignment = WD_ALIGN_PARAGRAPH.LEFT
     rm1 = p_meta.add_run("Code : PPER.06\n")
@@ -275,7 +275,7 @@ def generer_justificatif_iso(departement, donnees):
     p_esp1 = doc.add_paragraph()
     initialiser_paragraphe_strict(p_esp1)
     
-    # Bloc structure académique
+    # Bloc structure académique (Calibri 11)
     p_fac = doc.add_paragraph()
     initialiser_paragraphe_strict(p_fac)
     rfac = p_fac.add_run("Faculté de génie Electrique\n")
@@ -298,7 +298,7 @@ def generer_justificatif_iso(departement, donnees):
     p_esp3 = doc.add_paragraph()
     initialiser_paragraphe_strict(p_esp3)
     
-    # Formulaire d'identification de l'étudiant absent
+    # Formulaire d'identification de l'étudiant absent (Calibri 11)
     p_id = doc.add_paragraph()
     initialiser_paragraphe_strict(p_id)
     
@@ -327,7 +327,7 @@ def generer_justificatif_iso(departement, donnees):
     p_esp4 = doc.add_paragraph()
     initialiser_paragraphe_strict(p_esp4)
     
-    # Grille des motifs réglementaires
+    # Grille des motifs réglementaires (Calibri 11)
     p_motif_titre = doc.add_paragraph()
     initialiser_paragraphe_strict(p_motif_titre)
     r_mot_titre = p_motif_titre.add_run("Pour le motif suivant :")
@@ -364,7 +364,7 @@ def generer_justificatif_iso(departement, donnees):
     p_esp6 = doc.add_paragraph()
     initialiser_paragraphe_strict(p_esp6)
     
-    # Bloc visa / signature de l'autorité
+    # Bloc visa / signature de l'autorité (Calibri 11)
     p_sig = doc.add_paragraph()
     initialiser_paragraphe_strict(p_sig)
     p_sig.alignment = WD_ALIGN_PARAGRAPH.LEFT
@@ -603,7 +603,7 @@ if doc_choisi == "Bordereau d'envoi":
                 document_final.save(output_stream)
                 output_stream.seek(0)
                 
-                st.success("✓ Bordereau d'envoi généré avec succès (Police 11 pt strict).")
+                st.success("✓ Bordereau d'envoi généré avec succès.")
                 st.download_button(
                     label="⬇️ Télécharger le Bordereau d'envoi (.docx)",
                     data=output_stream,
@@ -619,17 +619,4 @@ elif doc_choisi == "Justification d'absence":
             st.error("Erreur : Le nom de l'étudiant ne peut pas être vide.")
         else:
             try:
-                document_final = generer_justificatif_iso(dept_choisi, donnees_doc)
-                output_stream = io.BytesIO()
-                document_final.save(output_stream)
-                output_stream.seek(0)
-                
-                st.success("✓ Justification d'absence générée avec succès (Ligne vide supprimée et interlignes compacts).")
-                st.download_button(
-                    label="⬇️ Télécharger le justificatif (.docx)",
-                    data=output_stream,
-                    file_name=f"Justification_Absence_{donnees_doc['nom_prenom'].replace(' ', '_')}.docx",
-                    mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document"
-                )
-            except Exception as error:
-                st.error(f"Échec de l'opération de génération : {str(error)}")
+                document_final = generer_justificatif_iso(dept_choisi
