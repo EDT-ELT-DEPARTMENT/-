@@ -9,7 +9,36 @@ import io
 import os
 import pandas as pd
 from datetime import datetime
+# ==========================================
+# CONFIGURATION DE LA PAGE (DOIT ÊTRE EN PREMIER)
+# ==========================================
+st.set_page_config(
+    page_title="Plateforme de gestion des EDTs-S2-2026-Département d'Électrotechnique-Faculté de génie électrique-UDL-SBA",
+    layout="wide"  # Garde l'affichage large actuel de votre interface
+)
 
+# ==========================================
+# INJECTION DU STYLE POUR CACHER STREAMLIT
+# ==========================================
+hide_streamlit_style = """
+    <style>
+    /* Masquer le menu hamburger, le bouton de déploiement et la barre supérieure */
+    header {visibility: hidden;}
+    [data-testid="stToolbar"] {visibility: hidden; height: 0px;}
+    [data-testid="stDecoration"] {visibility: hidden; height: 0px;}
+    [data-testid="stStatusWidget"] {visibility: hidden; height: 0px;}
+    #MainMenu {visibility: hidden;}
+    
+    /* Masquer le pied de page "Made with Streamlit" */
+    footer {visibility: hidden;}
+    
+    /* Réduire l'espace blanc du haut créé par la disparition du header */
+    .block-container {
+        padding-top: 2rem;
+    }
+    </style>
+"""
+st.markdown(hide_streamlit_style, unsafe_allow_html=True)
 # ==========================================
 # CONFIGURATION ET CONSTANTES
 # ==========================================
