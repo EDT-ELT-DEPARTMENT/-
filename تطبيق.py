@@ -66,17 +66,60 @@ LISTE_ANNEES_ETUDE = [
     "5ème Année"
 ]
 
-# Base de données officielle des enseignements et enseignants du département
-DATA_ENSEIGNANTS = {
-    "Zidi": ["Stabilité et dynamique des réseaux électriques (Cours-SDRE-RE)"],
-    "Bermaki": ["Éclairage LED: Principes et applications (Cours-LEDPA-RE)"],
-    "Touhami": ["Techniques d'intelligence artificielle (Cours-TIA-RE)"],
-    "BENHAMIDA": ["Intégration des ressources renouvelables aux réseaux électriques (Cours-IRRRE-RE)"],
-    "Rezoug": ["Dimensionnement des Réseaux électriques industriels (Cours-DREI-RE)"],
-    "Bellebna": ["Technique de la haute tension (Cours-THT-RE)"],
-    "Benhamida": ["Conduite des réseaux électriques (Cours-CdRE-RE)"],
-    "Maamar": ["Réseaux électriques intelligents (Cours-REI-RE)"]
-}
+NOM_FICHIER_EXCEL = "dataEDT-ELT-S2-2026.xlsx"
+
+# ==========================================
+# CHARGEMENT ET TRAITEMENT DU FICHIER SOURCE EXCEL
+# ==========================================
+@st.cache_data
+def charger_base_enseignements(chemin_fichier):
+    """
+    Charge le fichier Excel source et structure un dictionnaire indexé par Enseignant.
+    La disposition attendue est : Enseignements, Code, Enseignants, Horaire, Jours, Lieu, Promotion.
+    """
+    dict_enseignants = {}
+    if os.path.exists(chemin_fichier):
+        try:
+            df = pd.read_excel(chemin_fichier)
+            # Normalisation des noms de colonnes pour éviter les problèmes d'espaces
+            df.columns = [col.strip() for col in df.columns]
+            
+            # Vérification des colonnes critiques nécessaires pour notre traitement
+            if "Enseignants" in df.columns and "Enseignements" in df.columns and "Code" in df.columns:
+                for _, row in df.iterrows():
+                    nom_ens = str(row["Enseignants"]).strip()
+                    matiere_nom = str(row["Enseignements"]).strip()
+                    code_matiere = str(row["Code"]).strip()
+                    
+                    if nom_ens and nom_ens != "nan" and matiere_nom and matiere_nom != "nan":
+                        # Formatage rigoureux de l'affichage : Libellé (Cours-CODE-OPTION)
+                        libelle_matiere = f"{matiere_nom} ({code_matiere})"
+                        
+                        if nom_ens not in dict_enseignants:
+                            dict_enseignants[nom_ens] = []
+                        if libelle_matiere not in dict_enseignants[nom_ens]:
+                            dict_enseignants[nom_ens].append(libelle_matiere)
+            else:
+                st.error("Format critique absent : Les colonnes 'Enseignants', 'Enseignements' ou 'Code' manquent dans le fichier Excel.")
+        except Exception as e:
+            st.error(f"Erreur lors de la lecture du fichier Excel source : {str(e)}")
+            
+    # Base de secours stricte (Fallback) au cas où le fichier Excel est absent ou illisible
+    if not dict_enseignants:
+        dict_enseignants = {
+            "Zidi": ["Stabilité et dynamique des réseaux électriques (Cours-SDRE-RE)"],
+            "Bermaki": ["Éclairage LED: Principes et applications (Cours-LEDPA-RE)"],
+            "Touhami": ["Techniques d'intelligence artificielle (Cours-TIA-RE)"],
+            "BENHAMIDA": ["Intégration des ressources renouvelables aux réseaux électriques (Cours-IRRRE-RE)"],
+            "Rezoug": ["Dimensionnement des Réseaux électriques industriels (Cours-DREI-RE)"],
+            "Bellebna": ["Technique de la haute tension (Cours-THT-RE)"],
+            "Benhamida": ["Conduite des réseaux électriques (Cours-CdRE-RE)"],
+            "Maamar": ["Réseaux électriques intelligents (Cours-REI-RE)"]
+        }
+    return dict_enseignants
+
+# Chargement de la base de données filtrée par enseignant
+DATA_ENSEIGNANTS = charger_base_enseignements(NOM_FICHIER_EXCEL)
 
 # ==========================================
 # INITIALISATION DU SUIVI ET HISTORIQUE (SESSION STATE)
@@ -545,20 +588,12 @@ def generer_bordereau_iso(departement, donnees):
 
     return doc
 
-def generer_pv_generique(departement, type_pv, donnees):
-    doc = Document()
-    p = doc.add_paragraph()
-    initialiser_paragraphe_strict(p)
-    run = p.add_run(f"{type_pv} - {departement}\nDocument en cours.")
-    run.font.name = 'Calibri'
-    run.font.size = Pt(11)
-    return doc
-
 # ==========================================
 # INTERFACE UTILISATEUR STREAMLIT
 # ==========================================
 st.set_page_config(page_title="Générateur ISO Multi-Documents", layout="wide")
 
+# Rappel systématique du titre de l'application
 st.caption(TITRE_PLATEFORME)
 st.title("Gestion Administrative - Générateurs de documents")
 
@@ -613,7 +648,7 @@ with tab_formulaire:
         )
         donnees_doc['liste_pieces'] = df_edite.to_dict(orient="records")
 
-    # --- FORMULAIRE : JUSTIFICATION D'ABSENCE ---
+    # --- FORMULAIRE : JUSTIFICATION D'ABSENCE (BASE EXCEL LIEE) ---
     elif doc_choisi == "Justification d'absence":
         col_nom, col_annee = st.columns(2)
         with col_nom:
@@ -635,15 +670,19 @@ with tab_formulaire:
         with col_motif:
             donnees_doc['motif_selectionne'] = st.selectbox("Motif réglementaire retenu :", MOTIFS_ABSENCE, index=0)
             
-        # LISTES DÉROULANTES INTERDÉPENDANTES : ENSEIGNANTS ET ENSEIGNEMENTS
+        # LISTES DÉROULANTES INTERDÉPENDANTES EXTRAITES DU FICHIER EXCEL S2-2026
         st.markdown("##### Information Complémentaires (Enseignant & Enseignement)")
         col_ens, col_mat = st.columns(2)
+        
         with col_ens:
-            liste_nom_enseignants = list(DATA_ENSEIGNANTS.keys())
-            enseignant_choisi = st.selectbox("Enseignant ayant déclaré l'absence :", liste_nom_enseignants)
+            liste_nom_enseignants = sorted(list(DATA_ENSEIGNANTS.keys()))
+            # Repositionnement par défaut sur "Bellebna" si disponible pour coller à la capture
+            index_par_defaut = liste_nom_enseignants.index("Bellebna") if "Bellebna" in liste_nom_enseignants else 0
+            enseignant_choisi = st.selectbox("Enseignant ayant déclaré l'absence :", liste_nom_enseignants, index=index_par_defaut)
             donnees_doc['enseignant'] = enseignant_choisi
+            
         with col_mat:
-            liste_matieres_disponibles = DATA_ENSEIGNANTS[enseignant_choisi]
+            liste_matieres_disponibles = sorted(DATA_ENSEIGNANTS[enseignant_choisi])
             matiere_choisie = st.selectbox("Matière concernée :", liste_matieres_disponibles)
             donnees_doc['matiere'] = matiere_choisie
 
@@ -664,7 +703,7 @@ with tab_formulaire:
             elif nb_absences_actuelles > 0:
                 st.warning(f"Note : Cet étudiant possède actuellement {nb_absences_actuelles} absence(s) enregistrée(s).")
 
-    # --- FORMULAIRE : PAR DÉFAUT (PVs) ---
+    # --- FORMULAIRE : AUTRES CAS ---
     else:
         with st.form("form_autres"):
             donnees_doc['date_creation'] = st.date_input("Date", datetime.now())
@@ -764,7 +803,7 @@ with tab_historique:
             
         df_compteur = pd.DataFrame(donnees_compteur)
         
-        # Fonction de style mise à jour pour compatibilité stricte avec Pandas 2.0+ (.mapแทน applymap)
+        # Application de style robuste compatible Pandas 2.0+ avec .map()
         def styliser_tableau(val):
             color = 'background-color: #ffcccc; color: #cc0000; font-weight: bold;' if "EXCLU" in str(val) else ''
             return color
