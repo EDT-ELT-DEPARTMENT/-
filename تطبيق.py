@@ -545,7 +545,7 @@ def generer_pv_generique(departement, type_pv, donnees):
 st.set_page_config(page_title="Générateur ISO Multi-Documents", layout="wide")
 
 st.caption(TITRE_PLATEFORME)
-st.title("Gestion Administrative - Bordereaux & PVs")
+st.title("Gestion Administrative - Générateurs de documents")
 
 col_dept, col_doc = st.columns(2)
 with col_dept:
