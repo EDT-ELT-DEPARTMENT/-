@@ -66,7 +66,7 @@ LISTE_ANNEES_ETUDE = [
     "5ème Année"
 ]
 
-# Base de données des enseignements et enseignants du département
+# Base de données officielle des enseignements et enseignants du département
 DATA_ENSEIGNANTS = {
     "Zidi": ["Stabilité et dynamique des réseaux électriques (Cours-SDRE-RE)"],
     "Bermaki": ["Éclairage LED: Principes et applications (Cours-LEDPA-RE)"],
@@ -570,7 +570,7 @@ with col_doc:
 
 st.divider()
 
-# TAB NAVIGATION POUR INTEGRER L'HISTORIQUE ET LE FORMULAIRE
+# NAVIGATION PAR ONGLETS POUR INTEGRER L'HISTORIQUE ET L'ÉDITION
 tab_formulaire, tab_historique = st.tabs(["📝 Édition du Document", "📊 Historique & Compteur d'Exclusions"])
 
 with tab_formulaire:
@@ -635,7 +635,7 @@ with tab_formulaire:
         with col_motif:
             donnees_doc['motif_selectionne'] = st.selectbox("Motif réglementaire retenu :", MOTIFS_ABSENCE, index=0)
             
-        # NOUVELLES LISTES DÉROULANTES : ENSEIGNANTS ET MATIÈRES ASSOCIÉES
+        # LISTES DÉROULANTES INTERDÉPENDANTES : ENSEIGNANTS ET ENSEIGNEMENTS
         st.markdown("##### Information Complémentaires (Enseignant & Enseignement)")
         col_ens, col_mat = st.columns(2)
         with col_ens:
@@ -655,12 +655,12 @@ with tab_formulaire:
         with col_d3:
             donnees_doc['date_edition'] = st.date_input("Date de délivrance", datetime.now())
 
-        # Vérification instantanée du statut de l'étudiant
+        # Vérification instantanée et temps réel du statut d'exclusion
         nom_etudiant_clean = donnees_doc['nom_prenom'].strip()
         if nom_etudiant_clean:
             nb_absences_actuelles = st.session_state["compteur_absences"].get(nom_etudiant_clean, 0)
             if nb_absences_actuelles >= 5:
-                st.error(f"⚠️ ATTENTION : L'étudiant '{nom_etudiant_clean}' compte déjà {nb_absences_actuelles} absences justifiées. Il est déclaré EXCLU du module.")
+                st.error(f"⚠️ ATTENTION CRITIQUE : L'étudiant '{nom_etudiant_clean}' compte déjà {nb_absences_actuelles} absences justifiées. Il est déclaré EXCLU.")
             elif nb_absences_actuelles > 0:
                 st.warning(f"Note : Cet étudiant possède actuellement {nb_absences_actuelles} absence(s) enregistrée(s).")
 
@@ -674,7 +674,7 @@ with tab_formulaire:
     st.markdown("<br>", unsafe_allow_html=True)
 
     # ==========================================
-    # GESTION DES ACTIONS FINALES
+    # GESTION DES ACTIONS FINALES & COMPILATION
     # ==========================================
     if doc_choisi == "Bordereau d'envoi":
         if st.button("Compiler et Générer le Bordereau Officiel"):
@@ -705,16 +705,16 @@ with tab_formulaire:
                 try:
                     nom_etudiant = donnees_doc['nom_prenom'].strip()
                     
-                    # Génération du document Word ISO Strict
                     document_final = generer_justificatif_iso(dept_choisi, donnees_doc)
                     output_stream = io.BytesIO()
                     document_final.save(output_stream)
                     output_stream.seek(0)
                     
-                    # Mise à jour des structures de données de l'historique
+                    # Incrémentation du compteur global
                     st.session_state["compteur_absences"][nom_etudiant] = st.session_state["compteur_absences"].get(nom_etudiant, 0) + 1
                     total_absences = st.session_state["compteur_absences"][nom_etudiant]
                     
+                    # Insertion dans l'historique de session
                     enregistrement_historique = {
                         "Date Opération": datetime.now().strftime("%d/%m/%Y %H:%M"),
                         "Étudiant": nom_etudiant,
@@ -728,10 +728,10 @@ with tab_formulaire:
                     }
                     st.session_state["historique_justifications"].append(enregistrement_historique)
                     
-                    st.success(f"✓ Justification d'absence validée et générée (Absence n°{total_absences} enregistrée pour cet étudiant).")
+                    st.success(f"✓ Justification validée (Absence n°{total_absences} enregistrée).")
                     
                     if total_absences >= 5:
-                        st.error(f"🚨 Seuil critique atteint ({total_absences} absences) ! L'étudiant {nom_etudiant} est officiellement EXCLU.")
+                        st.error(f"🚨 Seuil critique atteint ou dépassé ! L'étudiant {nom_etudiant} est déclaré EXCLU.")
                         
                     st.download_button(
                         label="⬇️ Télécharger le justificatif (.docx)",
@@ -764,9 +764,9 @@ with tab_historique:
             
         df_compteur = pd.DataFrame(donnees_compteur)
         
-        # Coloration des lignes exclues dans le tableau Streamlit pour contrôle visuel strict
+        # Fonction de style mise à jour pour compatibilité stricte avec Pandas 2.0+ (.mapแทน applymap)
         def styliser_tableau(val):
             color = 'background-color: #ffcccc; color: #cc0000; font-weight: bold;' if "EXCLU" in str(val) else ''
             return color
             
-        st.dataframe(df_compteur.style.applymap(styliser_tableau, subset=["Situation Réglementaire"]), use_container_width=True)
+        st.dataframe(df_compteur.style.map(styliser_tableau, subset=["Situation Réglementaire"]), use_container_width=True)
