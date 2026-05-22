@@ -211,7 +211,7 @@ def appliquer_structure_pages_sans_ref(doc):
         
         r_separateur = footer_p.add_run(" / ")
         r_separateur.font.name = 'Calibri'
-        r_separateur.font.size = Pt(11)
+        r_separateur.font.size = Pt(12)
         
         r_total_pages = footer_p.add_run()
         r_total_pages.font.name = 'Calibri'
