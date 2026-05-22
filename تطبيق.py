@@ -44,6 +44,29 @@ MOTIFS_ABSENCE = [
     "Autre"
 ]
 
+# Nouvelles listes strictes demandées par l'utilisateur
+LISTE_SPECIALITES = [
+    "Réseeaux électriques",
+    "énergies renouvelables",
+    "commendes électriques",
+    "Master-MCIL",
+    "Licence_MCIL",
+    "Licence_ELT",
+    "Ingénieur",
+    "Ingénieur_EI",
+    "Ingénieur_RSE"
+]
+
+LISTE_ANNEES_ETUDE = [
+    "1ère Année Master",
+    "2ème Année Master",
+    "1ère Année",
+    "2ème Année",
+    "3ème Année",
+    "4ème Année",
+    "5ème Année"
+]
+
 # ==========================================
 # FONCTIONS TECHNIQUES DE STRUCTURE
 # ==========================================
@@ -530,6 +553,7 @@ def generer_pv_generique(departement, type_pv, donnees):
 # ==========================================
 st.set_page_config(page_title="Générateur ISO Multi-Documents", layout="wide")
 
+# Rappel systématique obligatoire du titre de la plateforme
 st.caption(TITRE_PLATEFORME)
 st.title("Gestion Administrative - Bordereaux & PVs")
 
@@ -586,11 +610,21 @@ elif doc_choisi == "Justification d'absence":
     with col_nom:
         donnees_doc['nom_prenom'] = st.text_input("Nom et prénom de l'étudiant(e) :", value="Benali Mohamed")
     with col_annee:
-        donnees_doc['annee_etude'] = st.text_input("Année d'étude (Ex: 1ère Année Master)", value="2ème Année Master")
+        # Intégration stricte de la liste déroulante demandée pour l'année d'étude
+        donnees_doc['annee_etude'] = st.selectbox(
+            "Année d'étude (Ex: 1ère Année Master) :", 
+            LISTE_ANNEES_ETUDE, 
+            index=1
+        )
         
     col_spec, col_motif = st.columns(2)
     with col_spec:
-        donnees_doc['specialite'] = st.text_input("Spécialité / Option :", value="Réseaux Électriques")
+        # Intégration stricte de la liste déroulante demandée pour la spécialité / option
+        donnees_doc['specialite'] = st.selectbox(
+            "Spécialité / Option :", 
+            LISTE_SPECIALITES, 
+            index=0
+        )
     with col_motif:
         donnees_doc['motif_selectionne'] = st.selectbox("Motif réglementaire retenu :", MOTIFS_ABSENCE, index=0)
         
