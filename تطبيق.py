@@ -13,7 +13,7 @@ from datetime import datetime
 # ==========================================
 # CONFIGURATION ET CONSTANTES
 # ==========================================
-TITRE_PLATEFORME = "Plateforme de gestion des EDTs-S2-2026-Département d'Électrotechnique-Faculté de génie électrique-UDL-SBA"
+TITRE_PLATEFORME = "Plateforme de gestion des EDTs & assiduité des étudiants_2025-2026-Département d'Électrotechnique-Faculté de génie électrique-UDL-SBA"
 
 DEPARTEMENTS = [
     "Département d'Électrotechnique",
