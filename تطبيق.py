@@ -189,7 +189,7 @@ def generer_justificatif_iso(departement, donnees):
     doc = Document()
     appliquer_structure_pages_sans_ref(doc)
     
-    # Création d'une grille matricielle rigide à 3 lignes pour éviter l'erreur de rectangle
+    # Création d'une grille matricielle rigide à 3 lignes et 3 colonnes
     grid_table = doc.add_table(rows=3, cols=3)
     grid_table.alignment = WD_TABLE_ALIGNMENT.CENTER
     grid_table.autofit = False
@@ -199,30 +199,35 @@ def generer_justificatif_iso(departement, donnees):
         for i, w in enumerate(widths):
             row.cells[i].width = w
 
-    # Fusion des cellules de la ligne inférieure pour le titre cartouché
-    cell_titre_bas = grid_table.cell(2, 0)
-    cell_titre_bas.merge(grid_table.cell(2, 1)).merge(grid_table.cell(2, 2))
+    # Extraction des cellules individuelles pour l'en-tête qualité
+    cell_logo_haut = grid_table.cell(0, 0)
+    cell_logo_bas = grid_table.cell(1, 0)
     
-    # Fusion verticale de la colonne du logo (Lignes 0 et 1)
-    cell_logo = grid_table.cell(0, 0)
-    cell_logo.merge(grid_table.cell(1, 0))
+    cell_univ_haut = grid_table.cell(0, 1)
+    cell_titre_bas = grid_table.cell(1, 1)
     
-    # Fusion des blocs centraux et droits pour assurer une géométrie rectangulaire parfaite
-    cell_etab = grid_table.cell(0, 1)
-    cell_etab.merge(grid_table.cell(1, 1))
+    cell_meta_haut = grid_table.cell(0, 2)
+    cell_meta_bas = grid_table.cell(1, 2)
     
-    cell_meta = grid_table.cell(0, 2)
-    cell_meta.merge(grid_table.cell(1, 2))
+    # 1. Bloc Gauche : Fusion verticale des cellules de la colonne 0 (Lignes 0 et 1) pour loger le Logo
+    cell_logo_haut.merge(cell_logo_bas)
     
-    # Application des paddings et des contours noirs
+    # 2. Bloc Droit : Fusion verticale des cellules de la colonne 2 (Lignes 0 et 1) pour loger les Métadonnées
+    cell_meta_haut.merge(cell_meta_bas)
+    
+    # 3. Ligne 2 complète (inférieure) : Fusion totale pour une bande de séparation ou zone de garde
+    cell_ligne_3 = grid_table.cell(2, 0)
+    cell_ligne_3.merge(grid_table.cell(2, 1)).merge(grid_table.cell(2, 2))
+    
+    # Application systématique des paddings internes et des contours noirs périphériques
     for row in grid_table.rows:
         for cell in row.cells:
             set_cell_margins(cell, top=110, bottom=110, left=120, right=120)
             cell.vertical_alignment = WD_ALIGN_VERTICAL.CENTER
             appliquer_bordure_cellule_noire(cell)
 
-    # Insertion du contenu - Logo
-    p_logo = cell_logo.paragraphs[0]
+    # Insertion du contenu - Cellule Logo unifiée
+    p_logo = cell_logo_haut.paragraphs[0]
     p_logo.alignment = WD_ALIGN_PARAGRAPH.CENTER
     nom_fichier_logo = "logo.PNG"
     if os.path.exists(nom_fichier_logo):
@@ -233,49 +238,47 @@ def generer_justificatif_iso(departement, donnees):
         r_alt.font.size = Pt(9)
         r_alt.font.italic = True
 
-    # Insertion du contenu - Établissement
-    p_etab = cell_etab.paragraphs[0]
-    p_etab.alignment = WD_ALIGN_PARAGRAPH.CENTER
-    
-    re1 = p_etab.add_run("Université Djillali Liabes\n")
+    # Insertion du contenu - Cellule Centrale Supérieure (Université)
+    p_univ = cell_univ_haut.paragraphs[0]
+    p_univ.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    re1 = p_univ.add_run("Université Djillali Liabes\n")
     re1.bold = True
     re1.font.name = 'Calibri'
     re1.font.size = Pt(13)
-    
-    re2 = p_etab.add_run("Sidi Bel Abbes")
+    re2 = p_univ.add_run("Sidi Bel Abbes")
     re2.font.name = 'Calibri'
     re2.font.size = Pt(11)
 
-    # Insertion du contenu - Métadonnées Qualité
-    p_meta = cell_meta.paragraphs[0]
+    # Insertion du contenu - Cellule Centrale Inférieure (Titre fractionné disposé en bas)
+    p_titre = cell_titre_bas.paragraphs[0]
+    p_titre.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    p_titre.paragraph_format.space_before = Pt(4)
+    p_titre.paragraph_format.space_after = Pt(4)
+    rc = p_titre.add_run("JUSTIFICATION D’ABSENCE")
+    rc.font.name = 'Calibri'
+    rc.font.size = Pt(16)
+    rc.bold = True
+
+    # Insertion du contenu - Cellule Droite unifiée (Métadonnées Qualité ISO)
+    p_meta = cell_meta_haut.paragraphs[0]
     p_meta.alignment = WD_ALIGN_PARAGRAPH.LEFT
     p_meta.paragraph_format.space_after = Pt(1)
-    
     rm1 = p_meta.add_run("Code : PPER.06\n")
     rm2 = p_meta.add_run("Révision : 00\n")
     rm3 = p_meta.add_run("Date : 16/05/2026\n")
     rm4 = p_meta.add_run("Pages : 1/1")
-    
     for rm in [rm1, rm2, rm3, rm4]:
         rm.font.name = 'Calibri'
         rm.font.size = Pt(9.5)
 
-    # Insertion du contenu - Titre Cartouché
-    p_titre = cell_titre_bas.paragraphs[0]
-    p_titre.alignment = WD_ALIGN_PARAGRAPH.CENTER
-    p_titre.paragraph_format.space_before = Pt(6)
-    p_titre.paragraph_format.space_after = Pt(6)
-    
-    rc = p_titre.add_run("JUSTIFICATION D’ABSENCE")
-    rc.font.name = 'Calibri'
-    rc.font.size = Pt(22)
-    rc.italic = True
-    rc.underline = True
-    rc.bold = True
+    # Neutralisation de la ligne 2 inférieure (utilisée comme base d'espacement réglementaire)
+    p_vide = cell_ligne_3.paragraphs[0]
+    p_vide.paragraph_format.space_before = Pt(2)
+    p_vide.paragraph_format.space_after = Pt(2)
 
     doc.add_paragraph("\n\n")
     
-    # Informations de structure académique
+    # Bloc structurel de l'autorité académique émettrice
     p_fac = doc.add_paragraph()
     rfac = p_fac.add_run("Faculté de génie Electrique\n")
     rfac.bold = True
@@ -294,7 +297,7 @@ def generer_justificatif_iso(departement, donnees):
     
     doc.add_paragraph("\n")
     
-    # Bloc d'identité de l'étudiant
+    # Formulaire d'identification de l'étudiant absent
     p_id = doc.add_paragraph()
     p_id.paragraph_format.line_spacing = 1.5
     
@@ -322,7 +325,7 @@ def generer_justificatif_iso(departement, donnees):
         
     doc.add_paragraph("\n")
     
-    # Sélection des motifs
+    # Grille de pointage des motifs valides
     p_motif_titre = doc.add_paragraph()
     r_mot_titre = p_motif_titre.add_run("Pour le motif suivant :")
     r_mot_titre.bold = True
@@ -354,7 +357,7 @@ def generer_justificatif_iso(departement, donnees):
     
     doc.add_paragraph("\n\n")
     
-    # Bloc de signature finale
+    # Bloc exécutoire final pour visa de l'administration
     p_sig = doc.add_paragraph()
     p_sig.alignment = WD_ALIGN_PARAGRAPH.LEFT
     date_edit_txt = donnees['date_edition'].strftime('%d/%m/%Y')
@@ -596,7 +599,7 @@ elif doc_choisi == "Justification d'absence":
                 document_final.save(output_stream)
                 output_stream.seek(0)
                 
-                st.success("✓ Justification d'absence générée avec succès (Structure matricielle stable).")
+                st.success("✓ Justification d'absence générée avec succès (Cartouche central fractionné).")
                 st.download_button(
                     label="⬇️ Télécharger le justificatif (.docx)",
                     data=output_stream,
