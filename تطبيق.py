@@ -2,7 +2,6 @@ import streamlit as st
 from docx import Document
 from docx.shared import Inches, Pt
 from docx.enum.text import WD_ALIGN_PARAGRAPH
-from docx.enum.table import WD_TABLE_ALIGNMENT, WD_ALIGN_VERTICAL
 from docx.oxml import OxmlElement
 from docx.oxml.ns import qn
 import io
@@ -24,7 +23,6 @@ DEPARTEMENTS = [
 
 TYPES_DOCUMENTS = [
     "Bordereau d'envoi",
-    "Justification d'absence",
     "Procès-verbal (PV) de réunion",
     "PV de surveillance",
     "PV du Comité Pédagogique",
@@ -36,12 +34,6 @@ OPTIONS_DESTINATAIRES = [
     "Le vice Doyen de la Post graduation",
     "Le vice Doyen de la graduation",
     "Autres"
-]
-
-MOTIFS_ABSENCE = [
-    "Personnel",
-    "Médical",
-    "Autre"
 ]
 
 # ==========================================
@@ -58,19 +50,6 @@ def set_cell_margins(cell, top=100, bottom=100, left=150, right=150):
         node.set(qn('w:type'), 'dxa')
         tcMar.append(node)
     tcPr.append(tcMar)
-
-def appliquer_bordure_cellule_noire(cell):
-    """Applique une bordure fine noire standard autour d'une cellule."""
-    tcPr = cell._tc.get_or_add_tcPr()
-    tcBorders = OxmlElement('w:tcBorders')
-    for border_name in ['top', 'left', 'bottom', 'right']:
-        b = OxmlElement(f'w:{border_name}')
-        b.set(qn('w:val'), 'single')
-        b.set(qn('w:sz'), '4')
-        b.set(qn('w:space'), '0')
-        b.set(qn('w:color'), '000000')
-        tcBorders.append(b)
-    tcPr.append(tcBorders)
 
 def ajouter_champ_page(run, type_champ):
     """Injecte un champ de numérotation dynamique (PAGE ou NUMPAGES) dans un paragraphe Word."""
@@ -89,31 +68,51 @@ def ajouter_champ_page(run, type_champ):
     run._r.append(fldChar2)
     run._r.append(fldChar3)
 
-def appliquer_structure_pages_sans_ref(doc):
-    """Configure les marges globales et le pied de page strict (SANS référence fixe, Page à droite)."""
+# ==========================================
+# GÉNÉRATEUR DE BORDEREAU ISO STRICT
+# ==========================================
+def generer_bordereau_iso(departement, donnees):
+    doc = Document()
+    
+    # Configuration des marges globales de la page (0.8 pouce partout)
     for section in doc.sections:
         section.top_margin = Inches(0.8)
         section.bottom_margin = Inches(0.8)
         section.left_margin = Inches(0.8)
         section.right_margin = Inches(0.8)
         
+        # Propagation du pied de page sur toutes les pages
         section.different_first_page_header_footer = False
         
+        # Structure du pied de page rectifié
         footer = section.footer
         footer_p = footer.paragraphs[0]
-        footer_p.alignment = WD_ALIGN_PARAGRAPH.LEFT
         
+        footer_p.alignment = WD_ALIGN_PARAGRAPH.LEFT
         footer_pPr = footer_p._p.get_or_add_pPr()
         tabs = OxmlElement('w:tabs')
         
-        # Un unique taquet à l'extrême droite pour les numéros de page (9936 dxa = ~6.9 pouces)
+        # 1. Taquet au centre pour la référence (Centre à ~ 3.45 pouces = 4968 dxa)
+        tab_centre = OxmlElement('w:tab')
+        tab_centre.set(qn('w:val'), 'center')
+        tab_centre.set(qn('w:pos'), '4968')
+        tabs.append(tab_centre)
+        
+        # 2. Taquet à l'extrême droite pour les numéros de page (Extrémité à 6.9 pouces = 9936 dxa)
         tab_droite = OxmlElement('w:tab')
         tab_droite.set(qn('w:val'), 'right')
         tab_droite.set(qn('w:pos'), '9936')
         tabs.append(tab_droite)
+        
         footer_pPr.append(tabs)
         
-        # Saut par tabulation vers l'extrême droite pour insérer la pagination
+        # Premier saut vers le centre pour y écrire le code de référence
+        footer_p.add_run("\t")
+        r_ref_fixe = footer_p.add_run("Réf : UDL-GEL-ER-004-2026")
+        r_ref_fixe.font.name = 'Calibri'
+        r_ref_fixe.font.size = Pt(11)
+        
+        # Deuxième saut vers l'extrême droite pour y loger la pagination automatique
         footer_p.add_run("\t")
         
         r_page_actuelle = footer_p.add_run()
@@ -130,11 +129,11 @@ def appliquer_structure_pages_sans_ref(doc):
         r_total_pages.font.size = Pt(11)
         ajouter_champ_page(r_total_pages, "NUMPAGES")
 
-def inserer_bloc_en_tete_bordereau(doc, departement):
-    """Génère l'en-tête standard classique avec logo pour le Bordereau d'envoi."""
+    # 1. STRUCTURE DE L'EN-TÊTE VIA UN TABLEAU INVISIBLE
     header_table = doc.add_table(rows=1, cols=2)
     header_table.alignment = WD_ALIGN_PARAGRAPH.CENTER
     header_table.autofit = False
+    
     header_table.columns[0].width = Inches(1.2)
     header_table.columns[1].width = Inches(5.7)
     
@@ -149,6 +148,7 @@ def inserer_bloc_en_tete_bordereau(doc, departement):
         tblBorders.append(border)
     tblPr.append(tblBorders)
 
+    # Insertion du Logo (Largeur 80 pixels = 0.833 pouces)
     p_logo = cell_logo.paragraphs[0]
     p_logo.alignment = WD_ALIGN_PARAGRAPH.LEFT
     
@@ -161,6 +161,7 @@ def inserer_bloc_en_tete_bordereau(doc, departement):
         r_alt.font.size = Pt(8)
         r_alt.font.italic = True
 
+    # Insertion des textes officiels de l'en-tête (Calibri)
     p_en_tete = cell_texte.paragraphs[0]
     p_en_tete.alignment = WD_ALIGN_PARAGRAPH.CENTER
     
@@ -181,77 +182,210 @@ def inserer_bloc_en_tete_bordereau(doc, departement):
     r_dept.bold = True
     r_dept.font.size = Pt(11)
     r_dept.font.name = 'Calibri'
+
+    doc.add_paragraph("\n")
+
+    # 2. RÉFÉRENCE CHRONOLOGIQUE
+    p_ref = doc.add_paragraph()
+    p_ref.alignment = WD_ALIGN_PARAGRAPH.LEFT
+    r_ref = p_ref.add_run(f"N° : {donnees['num_reference']}/ F.G.E/ V.D.E.Q.L.E/2026")
+    r_ref.font.size = Pt(10)
+    r_ref.font.name = 'Calibri'
+    r_ref.bold = True
+
+    doc.add_paragraph("\n")
+
+    # 3. TITRE DU BORDEREAU (Taille 36, Calibri, Italique, Souligné)
+    p_titre = doc.add_paragraph()
+    p_titre.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    r_titre = p_titre.add_run("BORDEREAU D’ENVOI")
+    r_titre.font.name = 'Calibri'
+    r_titre.font.size = Pt(36)
+    r_titre.italic = True
+    r_titre.underline = True
+    r_titre.bold = True
     
     doc.add_paragraph("\n")
 
-# ==========================================
-# GÉNÉRATEUR : JUSTIFICATION D'ABSENCE
-# ==========================================
-def generer_justificatif_iso(departement, donnees):
+    # 4. DESTINATAIRE CONSTRUIT DYNAMIQUEMENT (Calibri)
+    p_dest = doc.add_paragraph()
+    p_dest.alignment = WD_ALIGN_PARAGRAPH.LEFT
+    r_dest = p_dest.add_run(f"A monsieur : {donnees['destinataire']}")
+    r_dest.bold = True
+    r_dest.font.size = Pt(12)
+    r_dest.font.name = 'Calibri'
+
+    doc.add_paragraph("\n")
+
+    # 5. TABLEAU DE TRANSMISSION MULTI-LIGNES
+    liste_pieces = donnees['liste_pieces']
+    nb_lignes_totatles = 2 + len(liste_pieces)
+    
+    table = doc.add_table(rows=nb_lignes_totatles, cols=3)
+    table.style = 'Table Grid'
+    
+    table.columns[0].width = Inches(4.5)
+    table.columns[1].width = Inches(0.8)
+    table.columns[2].width = Inches(1.7)
+
+    # Ligne 1 : En-têtes fixes
+    hdr_cells = table.rows[0].cells
+    hdr_cells[0].text = "Désignation des pièces"
+    hdr_cells[1].text = "Nbre"
+    hdr_cells[2].text = "Observations"
+    
+    for cell in hdr_cells:
+        cell.paragraphs[0].alignment = WD_ALIGN_PARAGRAPH.CENTER
+        cell.paragraphs[0].runs[0].font.bold = True
+        cell.paragraphs[0].runs[0].font.name = 'Calibri'
+        cell.paragraphs[0].runs[0].font.size = Pt(10)
+        set_cell_margins(cell, top=120, bottom=120)
+
+    # Ligne 2 : Formule d'accompagnement
+    row_joint = table.rows[1].cells
+    row_joint[0].text = "Veuillez trouver ci-joint :"
+    row_joint[0].paragraphs[0].runs[0].font.italic = True
+    row_joint[0].paragraphs[0].runs[0].font.name = 'Calibri'
+    row_joint[0].paragraphs[0].runs[0].font.size = Pt(10)
+    set_cell_margins(row_joint[0], top=80, bottom=80)
+
+    # Lignes Dynamiques
+    for index, piece in enumerate(liste_pieces):
+        row_idx = 2 + index
+        current_row = table.rows[row_idx].cells
+        
+        current_row[0].text = str(piece["Désignation des pièces"])
+        current_row[1].text = str(piece["Nbre"])
+        current_row[2].text = str(piece["Observations"])
+        
+        for i, cell in enumerate(current_row):
+            set_cell_margins(cell, top=150, bottom=300)
+            if len(cell.paragraphs[0].runs) > 0:
+                cell.paragraphs[0].runs[0].font.name = 'Calibri'
+                cell.paragraphs[0].runs[0].font.size = Pt(10)
+            if i == 1:
+                cell.paragraphs[0].alignment = WD_ALIGN_PARAGRAPH.CENTER
+
+    doc.add_paragraph("\n\n")
+
+    # 6. SIGNATURES ET ACCUSÉ DE RÉCEPTION
+    p_signatures = doc.add_paragraph()
+    p_signatures.alignment = WD_ALIGN_PARAGRAPH.LEFT
+    date_texte = donnees['date_creation'].strftime('%d/%m/%Y')
+    run_sig = p_signatures.add_run(f"Sidi bel Abbès le : {date_texte}\t\t\t\tChef de département")
+    run_sig.font.name = 'Calibri'
+    run_sig.font.size = Pt(11)
+    run_sig.bold = True
+
+    doc.add_paragraph("\n\n\n\n")
+
+    p_accuse = doc.add_paragraph()
+    p_accuse.alignment = WD_ALIGN_PARAGRAPH.RIGHT
+    run_accuse = p_accuse.add_run("Accusé de réception    ")
+    run_accuse.font.name = 'Calibri'
+    run_accuse.font.size = Pt(10)
+    run_accuse.font.underline = True
+    run_accuse.bold = True
+
+    return doc
+
+def generer_pv_generique(departement, type_pv, donnees):
+    """Générateur secondaire de secours (Calibri)."""
     doc = Document()
-    appliquer_structure_pages_sans_ref(doc)
-    
-    # Création d'une grille matricielle rigide à 3 lignes pour éviter l'erreur de rectangle
-    grid_table = doc.add_table(rows=3, cols=3)
-    grid_table.alignment = WD_TABLE_ALIGNMENT.CENTER
-    grid_table.autofit = False
-    
-    # Largeurs des colonnes fixes (Somme = 6.9 pouces)
-    widths = [Inches(1.3), Inches(3.9), Inches(1.7)]
-    for row in grid_table.rows:
-        for i, w in enumerate(widths):
-            row.cells[i].width = w
+    p = doc.add_paragraph()
+    run = p.add_run(f"{type_pv} - {departement}\nDocument en cours.")
+    run.font.name = 'Calibri'
+    return doc
 
-    # Fusion des cellules de la ligne inférieure pour le titre cartouché
-    cell_titre_bas = grid_table.cell(2, 0)
-    cell_titre_bas.merge(grid_table.cell(2, 1)).merge(grid_table.cell(2, 2))
-    
-    # Fusion verticale de la colonne du logo (Lignes 0 et 1)
-    cell_logo = grid_table.cell(0, 0)
-    cell_logo.merge(grid_table.cell(1, 0))
-    
-    # Fusion des blocs centraux et droits pour assurer une géométrie rectangulaire parfaite
-    cell_etab = grid_table.cell(0, 1)
-    cell_etab.merge(grid_table.cell(1, 1))
-    
-    cell_meta = grid_table.cell(0, 2)
-    cell_meta.merge(grid_table.cell(1, 2))
-    
-    # Application des paddings et des contours noirs
-    for row in grid_table.rows:
-        for cell in row.cells:
-            set_cell_margins(cell, top=110, bottom=110, left=120, right=120)
-            cell.vertical_alignment = WD_ALIGN_VERTICAL.CENTER
-            appliquer_bordure_cellule_noire(cell)
+# ==========================================
+# INTERFACE UTILISATEUR STREAMLIT
+# ==========================================
+st.set_page_config(page_title="Générateur ISO Destinataire Dynamique", layout="wide")
 
-    # Insertion du contenu - Logo
-    p_logo = cell_logo.paragraphs[0]
-    p_logo.alignment = WD_ALIGN_PARAGRAPH.CENTER
-    nom_fichier_logo = "logo.PNG"
-    if os.path.exists(nom_fichier_logo):
-        p_logo.add_run().add_picture(nom_fichier_logo, width=Inches(0.85))
+st.caption(TITRE_PLATEFORME)
+st.title("Gestion Administrative - Bordereaux & PVs")
+
+col_dept, col_doc = st.columns(2)
+with col_dept:
+    dept_choisi = st.selectbox("Département émetteur :", DEPARTEMENTS)
+with col_doc:
+    doc_choisi = st.selectbox("Nature du document à générer :", TYPES_DOCUMENTS)
+
+st.divider()
+st.subheader(f"Formulaire d'édition - {doc_choisi}")
+
+donnees_doc = {}
+
+if doc_choisi == "Bordereau d'envoi":
+    col_ref, col_date = st.columns(2)
+    with col_ref:
+        donnees_doc['num_reference'] = st.text_input("Référence séquentielle (Ex: 27)", value="27")
+    with col_date:
+        donnees_doc['date_creation'] = st.date_input("Date d'édition", datetime.now())
+        
+    # ----------------------------------------------------
+    # ZONE DESTINATAIRE : SÉLECTEUR ET CHAMP LIBRE DYNAMIQUE
+    # ----------------------------------------------------
+    st.markdown("##### Destinataire officiel")
+    choix_dest = st.selectbox(
+        "Sélectionnez le destinataire dans la liste :", 
+        OPTIONS_DESTINATAIRES,
+        index=0
+    )
+    
+    if choix_dest == "Autres":
+        donnees_doc['destinataire'] = st.text_input("Veuillez saisir la destination personnalisée :", value="")
     else:
-        r_alt = p_logo.add_run("[ LOGO ]")
-        r_alt.font.name = 'Calibri'
-        r_alt.font.size = Pt(9)
-        r_alt.font.italic = True
+        donnees_doc['destinataire'] = choix_dest
+        
+    st.markdown("---")
+    st.write("**Configuration du Tableau de Transmission**")
+    
+    df_initial = pd.DataFrame([
+        {"Désignation des pièces": "Fiches de vœux du second semestre", "Nbre": 12, "Observations": "Pour examen"},
+        {"Désignation des pièces": "Procès-verbal de délibération", "Nbre": 2, "Observations": "Pour affichage"}
+    ])
+    
+    df_edite = st.data_editor(
+        df_initial, 
+        num_rows="dynamic", 
+        use_container_width=True,
+        column_config={
+            "Désignation des pièces": st.column_config.TextColumn(width="medium", required=True),
+            "Nbre": st.column_config.NumberColumn(width="small", min_value=1, required=True),
+            "Observations": st.column_config.TextColumn(width="medium")
+        }
+    )
+    donnees_doc['liste_pieces'] = df_edite.to_dict(orient="records")
 
-    # Insertion du contenu - Établissement
-    p_etab = cell_etab.paragraphs[0]
-    p_etab.alignment = WD_ALIGN_PARAGRAPH.CENTER
-    
-    re1 = p_etab.add_run("Université Djillali Liabes\n")
-    re1.bold = True
-    re1.font.name = 'Calibri'
-    re1.font.size = Pt(13)
-    
-    re2 = p_etab.add_run("Sidi Bel Abbes")
-    re2.font.name = 'Calibri'
-    re2.font.size = Pt(11)
+else:
+    with st.form("form_autres"):
+        donnees_doc['date_creation'] = st.date_input("Date", datetime.now())
+        donnees_doc['contenu'] = st.text_area("Contenu textuel")
+        st.form_submit_button("Valider")
 
-    # Insertion du contenu - Métadonnées Qualité
-    p_meta = cell_meta.paragraphs[0]
-    p_meta.alignment = WD_ALIGN_PARAGRAPH.LEFT
-    p_meta.paragraph_format.space_after = Pt(1)
-    
-    rm1 = p
+# Action finale de compilation
+if doc_choisi == "Bordereau d'envoi":
+    if st.button("Compiler et Générer le Bordereau Officiel"):
+        # Blocage de sécurité si le choix "Autres" est laissé vide
+        if not donnees_doc['destinataire'].strip():
+            st.error("Erreur : Le champ de destination personnalisée ne peut pas être vide.")
+        else:
+            try:
+                document_final = generer_bordereau_iso(dept_choisi, donnees_doc)
+                
+                output_stream = io.BytesIO()
+                document_final.save(output_stream)
+                output_stream.seek(0)
+                
+                st.success("✓ Bordereau généré avec succès avec le destinataire sélectionné.")
+                
+                nom_fichier_export = f"Bordereau_{dept_choisi.replace(' ', '_')}.docx"
+                st.download_button(
+                    label="⬇️ Télécharger le document (.docx)",
+                    data=output_stream,
+                    file_name=nom_fichier_export,
+                    mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+                )
+            except Exception as error:
+                st.error(f"Échec de l'opération de génération : {str(error)}")
