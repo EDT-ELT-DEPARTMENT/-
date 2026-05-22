@@ -185,46 +185,46 @@ def inserer_bloc_en_tete_bordereau(doc, departement):
     doc.add_paragraph("\n")
 
 # ==========================================
-# GÉNÉRATEUR : JUSTIFICATION D'ABSENCE (RÉSOLUTION DE L'ERREUR DE RECTANGLE)
+# GÉNÉRATEUR : JUSTIFICATION D'ABSENCE
 # ==========================================
 def generer_justificatif_iso(departement, donnees):
     doc = Document()
     appliquer_structure_pages_sans_ref(doc)
     
-    # Création d'une grille matricielle parfaite à 3 lignes pour éliminer le bug "not rectangular"
+    # Création d'une grille matricielle rigide à 3 lignes pour éviter l'erreur de rectangle
     grid_table = doc.add_table(rows=3, cols=3)
     grid_table.alignment = WD_TABLE_ALIGNMENT.CENTER
     grid_table.autofit = False
     
-    # Largeurs de colonnes fixes (Total = 6.9 pouces)
+    # Largeurs des colonnes fixes (Somme = 6.9 pouces)
     widths = [Inches(1.3), Inches(3.9), Inches(1.7)]
     for row in grid_table.rows:
         for i, w in enumerate(widths):
             row.cells[i].width = w
 
-    # Fusion des cellules de la ligne du bas (Ligne index 2) pour accueillir le titre global
+    # Fusion des cellules de la ligne inférieure pour le titre cartouché
     cell_titre_bas = grid_table.cell(2, 0)
     cell_titre_bas.merge(grid_table.cell(2, 1)).merge(grid_table.cell(2, 2))
     
-    # Fusion verticale de la colonne de gauche (Ligne 0 et Ligne 1) pour intégrer proprement le logo
+    # Fusion verticale de la colonne du logo (Lignes 0 et 1)
     cell_logo = grid_table.cell(0, 0)
     cell_logo.merge(grid_table.cell(1, 0))
     
-    # Fusion des cellules centrales et droites de la ligne 0 et 1 pour avoir deux grands blocs distincts
+    # Fusion des blocs centraux et droits pour assurer une géométrie rectangulaire parfaite
     cell_etab = grid_table.cell(0, 1)
     cell_etab.merge(grid_table.cell(1, 1))
     
     cell_meta = grid_table.cell(0, 2)
     cell_meta.merge(grid_table.cell(1, 2))
     
-    # Application des marges intérieures (padding) et des contours fins noirs
+    # Application des paddings et des contours noirs
     for row in grid_table.rows:
         for cell in row.cells:
             set_cell_margins(cell, top=110, bottom=110, left=120, right=120)
             cell.vertical_alignment = WD_ALIGN_VERTICAL.CENTER
             appliquer_bordure_cellule_noire(cell)
 
-    # 1. Cellule Logo (Gauche)
+    # Insertion du contenu - Logo
     p_logo = cell_logo.paragraphs[0]
     p_logo.alignment = WD_ALIGN_PARAGRAPH.CENTER
     nom_fichier_logo = "logo.PNG"
@@ -236,7 +236,7 @@ def generer_justificatif_iso(departement, donnees):
         r_alt.font.size = Pt(9)
         r_alt.font.italic = True
 
-    # 2. Cellule Établissement (Centre)
+    # Insertion du contenu - Établissement
     p_etab = cell_etab.paragraphs[0]
     p_etab.alignment = WD_ALIGN_PARAGRAPH.CENTER
     
@@ -249,5 +249,9 @@ def generer_justificatif_iso(departement, donnees):
     re2.font.name = 'Calibri'
     re2.font.size = Pt(11)
 
-    # 3. Cellule Métadonnées Qualité (Droite)
+    # Insertion du contenu - Métadonnées Qualité
     p_meta = cell_meta.paragraphs[0]
+    p_meta.alignment = WD_ALIGN_PARAGRAPH.LEFT
+    p_meta.paragraph_format.space_after = Pt(1)
+    
+    rm1 = p
