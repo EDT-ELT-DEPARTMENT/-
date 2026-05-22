@@ -829,4 +829,96 @@ with tab_historique:
             "Date de délivrance": meta["date_delivrance"],
             "Enseignant": meta["enseignant"],
             "Matière": meta["matiere"],
-            "Nombre d'absences comptabil
+            "Nombre d'absences comptabilisées": nb_abs,
+            "Situation Réglementaire": situation
+        }
+        donnees_compteur.append(ligne_complete)
+        
+        if nb_abs >= 5:
+            donnees_exclus_uniquement.append(ligne_complete)
+        
+    if donnees_compteur:
+        df_compteur = pd.DataFrame(donnees_compteur)
+    else:
+        df_compteur = pd.DataFrame(columns=COLONNES_SUIVI_OFFICIELRES)
+
+    if donnees_exclus_uniquement:
+        df_exclus = pd.DataFrame(donnees_exclus_uniquement)
+    else:
+        df_exclus = pd.DataFrame(columns=COLONNES_SUIVI_OFFICIELRES)
+    
+    def styliser_tableau(val):
+        color = 'background-color: #ffcccc; color: #cc0000; font-weight: bold;' if "EXCLU" in str(val) else ''
+        return color
+        
+    st.dataframe(df_compteur.style.map(styliser_tableau, subset=["Situation Réglementaire"]), use_container_width=True)
+    
+    # --- SECTION EXPORTATION DES ETUDIANTS EXCLUS ---
+    st.markdown("### 💾 Extraction et Téléchargement de la Liste des Exclus")
+    
+    if len(donnees_exclus_uniquement) == 0:
+        st.info("Aucun étudiant n'a atteint le seuil d'exclusion (5 absences cumulées dans la même matière) pour le moment.")
+    else:
+        st.warning(f"Total détecté : {len(df_exclus)} cas d'exclusion réglementaire par matière.")
+        
+        col_btn_excel, col_btn_html = st.columns(2)
+        
+        with col_btn_excel:
+            buffer_excel = io.BytesIO()
+            with pd.ExcelWriter(buffer_excel, engine='openpyxl') as writer:
+                df_exclus.to_excel(writer, index=False, sheet_name='Liste_des_Exclus_Matiere')
+            buffer_excel.seek(0)
+            
+            st.download_button(
+                label="📥 Télécharger la Liste des Exclus en format Excel (.xlsx)",
+                data=buffer_excel,
+                file_name=f"Liste_Exclus_Par_Matiere_{datetime.now().strftime('%d_%m_%Y')}.xlsx",
+                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                use_container_width=True
+            )
+            
+        with col_btn_html:
+            html_style = """
+            <style>
+                table { border-collapse: collapse; width: 100%; font-family: 'Calibri', sans-serif; margin-top: 20px; }
+                th { background-color: #cc0000; color: white; padding: 10px; text-align: left; border: 1px solid #333; }
+                td { padding: 8px; border: 1px solid #666; }
+                tr:nth-child(even) { background-color: #f2f2f2; }
+                .title { font-family: 'Arial', sans-serif; color: #333; font-size: 18px; font-weight: bold; text-align: center; margin-bottom: 5px; }
+                .subtitle { font-family: 'Calibri', sans-serif; color: #555; text-align: center; font-size: 13px; margin-bottom: 25px; }
+                .badge-exclu { color: #cc0000; font-weight: bold; background-color: #ffcccc; padding: 4px; border-radius: 3px; }
+            </style>
+            """
+            html_titre_bloc = f'<div class="title">RÉPUBLIQUE ALGÉRIENNE DÉMOCRATIQUE ET POPULAIRE</div>'
+            html_titre_bloc += f'<div class="subtitle">{TITRE_PLATEFORME}<br>LISTE DES EXCLUS UNITAIRES PAR COUPLE (ENSEIGNANT / MATIÈRE)</div>'
+            
+            html_table_brute = df_exclus.to_html(index=False)
+            html_table_brute = html_table_brute.replace('❌ EXCLU DE LA MATIÈRE', '<span class="badge-exclu">❌ EXCLU DE LA MATIÈRE</span>')
+            
+            html_document_complet = f"<html><head><meta charset='utf-8'>{html_style}</head><body>{html_titre_bloc}{html_table_brute}</body></html>"
+            
+            st.download_button(
+                label="🌐 Télécharger la Liste des Exclus en format HTML (.html)",
+                data=html_document_complet,
+                file_name=f"Liste_Exclus_Par_Matiere_{datetime.now().strftime('%d_%m_%Y')}.html",
+                mime="text/html",
+                use_container_width=True
+            )
+
+    # ==========================================
+    # BOUTON STRICT DE PURGE DE L'HISTORIQUE
+    # ==========================================
+    st.divider()
+    st.markdown("### 🗑️ Zone de Sécurité : Purge des Données Courantes")
+    
+    with st.expander("Ouvrir les options de nettoyage de la base de session"):
+        st.warning("Attention : L'effacement de l'historique supprimera définitivement tous les enregistrements de justificatifs et réinitialisera les compteurs d'absences de tous les étudiants à zéro.")
+        confirmation_purge = st.checkbox("Je confirme vouloir vider l'historique et remettre à zéro les compteurs d'exclusions.")
+        
+        if confirmation_purge:
+            if st.button("⚠️ Exécuter l'effacement complet des données"):
+                st.session_state["historique_justifications"] = []
+                st.session_state["compteur_absences_strict"] = {}
+                st.session_state["metadonnees_absences_strict"] = {}
+                st.success("L'historique global et les compteurs d'absences ont été réinitialisés avec succès.")
+                st.rerun()
