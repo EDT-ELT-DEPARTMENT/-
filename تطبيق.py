@@ -187,7 +187,7 @@ def initialiser_paragraphe_strict(p):
     """Supprime totalement les espaces et configure un interligne simple strict."""
     p.paragraph_format.space_before = Pt(0)
     p.paragraph_format.space_after = Pt(0)
-    p.paragraph_format.line_spacing = 1.5
+    p.paragraph_format.line_spacing = 1.0
 
 def appliquer_structure_pages_sans_ref(doc):
     """Configure les marges globales et positionne le numéro de page à l'extrémité droite du pied de page."""
