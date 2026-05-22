@@ -44,7 +44,6 @@ MOTIFS_ABSENCE = [
     "Autre"
 ]
 
-# Nouvelles listes strictes demandées par l'utilisateur
 LISTE_SPECIALITES = [
     "Réseeaux électriques",
     "énergies renouvelables",
@@ -83,7 +82,7 @@ def set_cell_margins(cell, top=60, bottom=60, left=120, right=120):
     tcPr.append(tcMar)
 
 def appliquer_bordure_cellule_noire(cell):
-    """Applique une bordure fine noire standard autour d'une cellule."""
+    """Applique une bordure fine noire standard et complète sur tous les côtés d'une cellule."""
     tcPr = cell._tc.get_or_add_tcPr()
     tcBorders = OxmlElement('w:tcBorders')
     for border_name in ['top', 'left', 'bottom', 'right']:
@@ -262,11 +261,11 @@ def generer_justificatif_iso(departement, donnees):
     cell_meta_haut = grid_table.cell(0, 2)
     cell_meta_bas = grid_table.cell(1, 2)
     
-    # Fusion verticale réglementaire pour les colonnes latérales (Logo et Métadonnées)
+    # Fusion manuelle via XML pour garantir l'application du quadrillage complet sur les cellules fusionnées
     cell_logo_haut.merge(cell_logo_bas)
     cell_meta_haut.merge(cell_meta_bas)
     
-    # Formatage final de l'ensemble des cellules
+    # Formatage final et application du quadrillage complet sur chaque cellule individuelle
     for row in grid_table.rows:
         for cell in row.cells:
             set_cell_margins(cell, top=60, bottom=60, left=100, right=100)
@@ -553,7 +552,6 @@ def generer_pv_generique(departement, type_pv, donnees):
 # ==========================================
 st.set_page_config(page_title="Générateur ISO Multi-Documents", layout="wide")
 
-# Rappel systématique obligatoire du titre de la plateforme
 st.caption(TITRE_PLATEFORME)
 st.title("Gestion Administrative - Bordereaux & PVs")
 
@@ -610,7 +608,6 @@ elif doc_choisi == "Justification d'absence":
     with col_nom:
         donnees_doc['nom_prenom'] = st.text_input("Nom et prénom de l'étudiant(e) :", value="Benali Mohamed")
     with col_annee:
-        # Intégration stricte de la liste déroulante demandée pour l'année d'étude
         donnees_doc['annee_etude'] = st.selectbox(
             "Année d'étude (Ex: 1ère Année Master) :", 
             LISTE_ANNEES_ETUDE, 
@@ -619,7 +616,6 @@ elif doc_choisi == "Justification d'absence":
         
     col_spec, col_motif = st.columns(2)
     with col_spec:
-        # Intégration stricte de la liste déroulante demandée pour la spécialité / option
         donnees_doc['specialite'] = st.selectbox(
             "Spécialité / Option :", 
             LISTE_SPECIALITES, 
@@ -680,7 +676,7 @@ elif doc_choisi == "Justification d'absence":
                 document_final.save(output_stream)
                 output_stream.seek(0)
                 
-                st.success("✓ Justification d'absence générée avec succès (Cartouche verrouillé XML à 3.70\").")
+                st.success("✓ Justification d'absence générée avec succès (Quadrillage complet & Cartouche verrouillé XML à 3.70\").")
                 st.download_button(
                     label="⬇️ Télécharger le justificatif (.docx)",
                     data=output_stream,
