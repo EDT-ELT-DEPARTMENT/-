@@ -110,6 +110,10 @@ COLONNES_SUIVI_OFFICIELRES = [
 # ==========================================
 # CHARGEMENT ET TRAITEMENT DU FICHIER SOURCE EXCEL
 # ==========================================
+# ==========================================
+# CHARGEMENT ET TRAITEMENT DES FICHIERS SOURCES EXCEL
+# ==========================================
+
 @st.cache_data
 def charger_base_enseignements(chemin_fichier):
     """
@@ -153,7 +157,47 @@ def charger_base_enseignements(chemin_fichier):
         }
     return dict_enseignants
 
+
+@st.cache_data
+def charger_liste_etudiants(url_github):
+    """
+    Charge la liste globale des étudiants depuis l'URL Raw de GitHub.
+    Nettoie les données et prépare l'indexation par Nom et Prénom pour l'interface.
+    """
+    try:
+        df = pd.read_excel(url_github)
+        df.columns = [col.strip() for col in df.columns]
+        
+        # Validation stricte des colonnes requises dans le fichier d'assiduité
+        colonnes_requises = ["Nom", "Prénom", "Mat. Etudiant", "Promotion"]
+        if all(col in df.columns for col in colonnes_requises):
+            # Création d'un champ combiné formaté (NOM Prénom) pour la sélection Streamlit
+            df["Nom_Prenom_Complet"] = df["Nom"].astype(str).str.strip().str.upper() + " " + df["Prénom"].astype(str).str.strip()
+            return df
+        else:
+            st.error("Le deuxième fichier source (GitHub) ne dispose pas des colonnes réglementaires : Nom, Prénom, Mat. Etudiant, Promotion.")
+            return pd.DataFrame()
+    except Exception as e:
+        st.error(f"Erreur d'accès ou de lecture du fichier étudiant distant GitHub : {str(e)}")
+        
+        # Base de secours structurelle stricte si la connexion GitHub échoue au démarrage
+        df_secours = pd.DataFrame(columns=["Nom", "Prénom", "Mat. Etudiant", "Promotion"])
+        df_secours.loc[0] = ["BENALI", "Mohamed", "202035011222", "M2RE"]
+        df_secours.loc[1] = ["MEHRAZ", "Amina", "202136055444", "M1RE"]
+        df_secours["Nom_Prenom_Complet"] = df_secours["Nom"].astype(str) + " " + df_secours["Prénom"].astype(str)
+        return df_secours
+
+
+# ==========================================
+# INITIALISATION ET APPEL DES BASES DE DONNÉES
+# ==========================================
+
+# Définition de l'URL Raw de votre dépôt GitHub contenant la liste des étudiants
+URL_FICHIER_ETUDIANTS_GITHUB = "https://raw.githubusercontent.com/VOTRE_COMPTE/VOTRE_DEPOT/main/Liste%20des%20%C3%A9tudiants_2025-2026.XLSX"
+
+# Chargement effectif des deux structures de données distinctes
 DATA_ENSEIGNANTS = charger_base_enseignements(NOM_FICHIER_EXCEL)
+DATA_ETUDIANTS = charger_liste_etudiants(URL_FICHIER_ETUDIANTS_GITHUB)
 
 # ==========================================
 # INITIALISATION DU SUIVI ET HISTORIQUE (SESSION STATE)
