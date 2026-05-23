@@ -73,7 +73,7 @@ MOTIFS_ABSENCE = [
     "Autre"
 ]
 
-LISTE_SPECIALITES = [
+_SPECIALITES = [
     "Réseaux électriques",
     "Energies renouvelables",
     "Commandes électriques",
@@ -85,7 +85,7 @@ LISTE_SPECIALITES = [
     "Ingénieur_RSE"
 ]
 
-LISTE_ANNEES_ETUDE = [
+_ANNEES_ETUDE = [
     "1ère Année Master",
     "2ème Année Master",
     "1ère Année",
@@ -159,12 +159,12 @@ def charger_base_enseignements(chemin_fichier):
 
 
 @st.cache_data
-def charger_liste_etudiants(url_github):
+def charger_Liste des étudiants_2025-2026.xlsx:
     """
     Charge la liste globale des étudiants depuis l'URL Raw de GitHub.
     Nettoie les données et prépare l'indexation par Nom et Prénom pour l'interface.
     """
-    try:
+    try
         df = pd.read_excel(url_github)
         df.columns = [col.strip() for col in df.columns]
         
