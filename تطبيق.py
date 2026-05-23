@@ -110,6 +110,50 @@ COLONNES_SUIVI_OFFICIELRES = [
 # ==========================================
 # CHARGEMENT ET TRAITEMENT DU FICHIER SOURCE EXCEL
 # ==========================================
+import os
+import urllib.parse
+import pandas as pd
+import streamlit as st
+
+# Configuration de l'accès distant GitHub
+GITHUB_BASE_URL = "https://raw.githubusercontent.com/votre_compte/votre_depot/main/"
+NOM_FICHIER_ETUDIANTS = "Liste des étudiants_2025-2026.xlsx"
+
+@st.cache_data
+def charger_base_etudiants_distant(base_url, nom_fichier):
+    """
+    Formate l'URL GitHub brute de manière sécurisée et charge le fichier Excel des étudiants.
+    Gère les erreurs d'accès 404 et le repli sur un fichier local en cas de coupure réseau.
+    """
+    df_etudiants = None
+    
+    # Encodage propre du nom de fichier pour transformer les espaces et accents (ex: %20, %C3%A9)
+    nom_fichier_encode = urllib.parse.quote(nom_fichier)
+    url_complete = f"{base_url}{nom_fichier_encode}"
+    
+    try:
+        # Tentative de lecture du fichier distant sur GitHub
+        df_etudiants = pd.read_excel(url_complete)
+        st.success(f"Base de données des étudiants synchronisée avec succès depuis GitHub.")
+        
+    except Exception as e:
+        st.warning(f"Erreur d'accès ou de lecture du fichier étudiant distant GitHub : {str(e)}")
+        st.info("Tentative de bascule sur la base de données locale de repli...")
+        
+        # Vérification et lecture d'une copie locale si GitHub est inaccessible
+        if os.path.exists(nom_fichier):
+            try:
+                df_etudiants = pd.read_excel(nom_fichier)
+                st.success("Fichier local chargé avec succès.")
+            except Exception as erreur_locale:
+                st.error(f"Impossible de lire le fichier local de repli : {str(erreur_locale)}")
+        else:
+            st.error(f"Fichier local de repli '{nom_fichier}' introuvable. Veuillez vérifier l'emplacement du fichier.")
+            
+    return df_etudiants
+
+# Appel sécurisé au démarrage de la plateforme
+donnees_etudiants = charger_base_etudiants_distant(GITHUB_BASE_URL, NOM_FICHIER_ETUDIANTS)
 @st.cache_data
 def charger_base_enseignements(chemin_fichier):
     """
