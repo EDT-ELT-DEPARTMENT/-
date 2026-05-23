@@ -111,6 +111,90 @@ COLONNES_SUIVI_OFFICIELRES = [
 # CHARGEMENT ET TRAITEMENT DU FICHIER SOURCE EXCEL
 # ==========================================
 @st.cache_data
+def charger_base_enseignements(chemin_fichier):
+    """
+    Charge le fichier Excel source et structure un dictionnaire indexé par Enseignant.
+    La disposition originale est respectée : Enseignements, Code, Enseignants, Horaire, Jours, Lieu, Promotion.
+    """
+    dict_enseignants = {}
+    if os.path.exists(chemin_fichier):
+        try:
+            df = pd.read_excel(chemin_fichier)
+            df.columns = [col.strip() for col in df.columns]
+            
+            if "Enseignants" in df.columns and "Enseignements" in df.columns and "Code" in df.columns:
+                for _, row in df.iterrows():
+                    nom_ens = str(row["Enseignants"]).strip()
+                    matiere_nom = str(row["Enseignements"]).strip()
+                    code_matiere = str(row["Code"]).strip()
+                    
+                    if nom_ens and nom_ens != "nan" and matiere_nom and matiere_nom != "nan":
+                        libelle_matiere = f"{matiere_nom} ({code_matiere})"
+                        
+                        if nom_ens not in dict_enseignants:
+                            dict_enseignants[nom_ens] = []
+                        if libelle_matiere not in dict_enseignants[nom_ens]:
+                            dict_enseignants[nom_ens].append(libelle_matiere)
+            else:
+                st.error("Format critique absent : Les colonnes 'Enseignants', 'Enseignements' ou 'Code' manquent dans le fichier Excel.")
+        except Exception as e:
+            st.error(f"Erreur lors de la lecture du fichier Excel source : {str(e)}")
+            
+    if not dict_enseignants:
+        dict_enseignants = {
+            "Zidi": ["Stabilité et dynamique des réseaux électriques (Cours-SDRE-RE)"],
+            "Bermaki": ["Éclairage LED: Principes et applications (Cours-LEDPA-RE)"],
+            "Touhami": ["Techniques d'intelligence artificielle (Cours-TIA-RE)"],
+            "BENHAMIDA": ["Intégration des ressources renouvelables aux réseaux électriques (Cours-IRRRE-RE)"],
+            "Rezoug": ["Dimensionnement des Réseaux électriques industriels (Cours-DREI-RE)"],
+            "Bellebna": ["Technique de la haute tension (Cours-THT-RE)"],
+            "Benhamida": ["Conduite des réseaux électriques (Cours-CdRE-RE)"],
+            "Maamar": ["Réseaux électriques intelligents (Cours-REI-RE)"]
+        }
+    return dict_enseignants
+
+
+@st.cache_data
+def charger_liste_etudiants(url_github):
+    """
+    Charge la liste globale des étudiants depuis l'URL Raw de GitHub.
+    Nettoie les données et prépare l'indexation par Nom et Prénom pour l'interface.
+    """
+    try:
+        df = pd.read_excel(url_github)
+        df.columns = [col.strip() for col in df.columns]
+        
+        # Validation stricte des colonnes requises dans le fichier d'assiduité
+        colonnes_requises = ["Nom", "Prénom", "Mat. Etudiant", "Promotion"]
+        if all(col in df.columns for col in colonnes_requises):
+            # Création d'un champ combiné formaté (NOM Prénom) pour la sélection Streamlit
+            df["Nom_Prenom_Complet"] = df["Nom"].astype(str).str.strip().str.upper() + " " + df["Prénom"].astype(str).str.strip()
+            return df
+        else:
+            st.error("Le deuxième fichier source (GitHub) ne dispose pas des colonnes réglementaires : Nom, Prénom, Mat. Etudiant, Promotion.")
+            return pd.DataFrame()
+    except Exception as e:
+        st.error(f"Erreur d'accès ou de lecture du fichier étudiant distant GitHub : {str(e)}")
+        
+        # Base de secours structurelle stricte si la connexion GitHub échoue au démarrage
+        df_secours = pd.DataFrame(columns=["Nom", "Prénom", "Mat. Etudiant", "Promotion"])
+        df_secours.loc[0] = ["BENALI", "Mohamed", "202035011222", "M2RE"]
+        df_secours.loc[1] = ["MEHRAZ", "Amina", "202136055444", "M1RE"]
+        df_secours["Nom_Prenom_Complet"] = df_secours["Nom"].astype(str) + " " + df_secours["Prénom"].astype(str)
+        return df_secours
+
+
+# ==========================================
+# INITIALISATION ET APPEL DES BASES DE DONNÉES
+# ==========================================
+
+# Définition de l'URL Raw de votre dépôt GitHub contenant la liste des étudiants
+URL_FICHIER_ETUDIANTS_GITHUB = "https://raw.githubusercontent.com/VOTRE_COMPTE/VOTRE_DEPOT/main/Liste%20des%20%C3%A9tudiants_2025-2026.XLSX"
+
+# Chargement effectif des deux structures de données distinctes
+DATA_ENSEIGNANTS = charger_base_enseignements(NOM_FICHIER_EXCEL)
+DATA_ETUDIANTS = charger_liste_etudiants(URL_FICHIER_ETUDIANTS_GITHUB)
+@st.cache_data
 def charger_liste_etudiants(url_github):
     """
     Charge la liste globale des étudiants depuis l'URL Raw de GitHub.
