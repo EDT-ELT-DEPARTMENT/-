@@ -791,72 +791,149 @@ with tab_formulaire:
         )
         donnees_doc['liste_pieces'] = df_edite.to_dict(orient="records")
 
-    # --- FORMULAIRE : JUSTIFICATION D'ABSENCE ---
-    elif doc_choisi == "Justification d'absence":
-        col_nom, col_annee = st.columns(2)
-        with col_nom:
-            donnees_doc['nom_prenom'] = st.text_input("Nom et prénom de l'étudiant(e) :", value="Benali Mohamed")
-        with col_annee:
-            donnees_doc['annee_etude'] = st.selectbox(
-                "Année d'étude (Ex: 1ère Année Master) :", 
-                LISTE_ANNEES_ETUDE, 
-                index=1
+    import os
+import urllib.parse
+import datetime
+import pandas as pd
+import streamlit as st
+
+# --- ACCÈS AUX ÉTUDIANTS DEPUIS LE FICHIER SOURCE ---
+liste_noms_etudiants = []
+nom_fichier_etudiants = "Liste des étudiants_2025-2026.xlsx"
+github_url_racine = "https://raw.githubusercontent.com/votre_compte/votre_depot/main/"
+
+# Encodage de l'adresse brute pour GitHub (sécurisation espaces et accents)
+nom_fichier_encode = urllib.parse.quote(nom_fichier_etudiants)
+url_complete_etudiants = f"{github_url_racine}{nom_fichier_encode}"
+
+# Tentative de récupération des étudiants (Distant GitHub puis Repli Local)
+df_etudiants_source = None
+try:
+    df_etudiants_source = pd.read_excel(url_complete_etudiants)
+except Exception:
+    if os.path.exists(nom_fichier_etudiants):
+        try:
+            df_etudiants_source = pd.read_excel(nom_fichier_etudiants)
+        except Exception:
+            pass
+
+# Extraction et nettoyage alphabétique de la colonne des noms d'étudiants
+if df_etudiants_source is not None:
+    df_etudiants_source.columns = [str(col).strip() for col in df_etudiants_source.columns]
+    for col_detectee in ["Nom et prénom", "Nom et Prénom", "Etudiants", "Etudiant", "Nom"]:
+        if col_detectee in df_etudiants_source.columns:
+            liste_noms_etudiants = df_etudiants_source[col_detectee].dropna().astype(str).str.strip().unique().tolist()
+            liste_noms_etudiants.sort()
+            break
+
+# Initialisation de la variable de verrouillage de sécurité
+verrou_dates_invalides = False
+
+# --- FORMULAIRE : JUSTIFICATION D'ABSENCE ---
+if doc_choisi == "Justification d'absence":
+    col_nom, col_annee = st.columns(2)
+    
+    with col_nom:
+        # Remplacement du text_input par le selectbox alimenté par la liste des étudiants du fichier source
+        if liste_noms_etudiants:
+            donnees_doc['nom_prenom'] = st.selectbox(
+                "Nom et prénom de l'étudiant(e) :",
+                options=liste_noms_etudiants
             )
-            
-        col_spec, col_motif = st.columns(2)
-        with col_spec:
-            donnees_doc['specialite'] = st.selectbox(
-                "Spécialité / Option :", 
-                LISTE_SPECIALITES, 
-                index=0
+        else:
+            # Saisie manuelle de secours préservée si le fichier source est inaccessible
+            donnees_doc['nom_prenom'] = st.text_input(
+                "Nom et prénom de l'étudiant(e) :", 
+                value="Benali Mohamed"
             )
-        with col_motif:
-            donnees_doc['motif_selectionne'] = st.selectbox("Motif réglementaire retenu :", MOTIFS_ABSENCE, index=0)
+            st.warning("⚠️ Base de données des étudiants introuvable. Saisie libre activée.")
             
-        st.markdown("##### Informations Complémentaires (Enseignant & Enseignement)")
-        col_ens, col_mat = st.columns(2)
+    with col_annee:
+        donnees_doc['annee_etude'] = st.selectbox(
+            "Année d'étude (Ex: 1ère Année Master) :", 
+            LISTE_ANNEES_ETUDE, 
+            index=1
+        )
         
-        with col_ens:
-            liste_nom_enseignants = sorted(list(DATA_ENSEIGNANTS.keys()))
-            index_par_defaut = liste_nom_enseignants.index("Bellebna") if "Bellebna" in liste_nom_enseignants else 0
-            enseignant_choisi = st.selectbox("Enseignant ayant déclaré l'absence :", liste_nom_enseignants, index=index_par_defaut)
-            donnees_doc['enseignant'] = enseignant_choisi
-            
-        with col_mat:
-            liste_matieres_disponibles = sorted(DATA_ENSEIGNANTS[enseignant_choisi])
-            matiere_choisie = st.selectbox("Matière concernée :", liste_matieres_disponibles)
-            donnees_doc['matiere'] = matiere_choisie
-
-        col_d1, col_d2, col_d3 = st.columns(3)
-        with col_d1:
-            donnees_doc['date_debut'] = st.date_input("Date de début de l'absence", datetime.now())
-        with col_d2:
-            donnees_doc['date_fin'] = st.date_input("Date de fin de l'absence", datetime.now())
-        with col_d3:
-            donnees_doc['date_edition'] = st.date_input("Date de délivrance (Justification)", datetime.now())
-
-        # Vérification et Verrouillage Strict Chronologique des dates
-        if donnees_doc['date_edition'] < donnees_doc['date_debut']:
-            verrou_dates_invalides = True
-            st.error("🚨 ERREUR CRITIQUE DE SAISIE : La date de délivrance de la justification ne peut pas être antérieure à la date de début de l'absence. Le système bloque la génération du document.")
+    col_spec, col_motif = st.columns(2)
+    with col_spec:
+        donnees_doc['specialite'] = st.selectbox(
+            "Spécialité / Option :", 
+            LISTE_SPECIALITES, 
+            index=0
+        )
+    with col_motif:
+        donnees_doc['motif_selectionne'] = st.selectbox(
+            "Motif réglementaire retenu :", 
+            MOTIFS_ABSENCE, 
+            index=0
+        )
         
-        nom_etudiant_clean = donnees_doc['nom_prenom'].strip()
-        if nom_etudiant_clean and not verrou_dates_invalides:
-            cle_composite_verif = (nom_etudiant_clean, donnees_doc['enseignant'], donnees_doc['matiere'])
-            nb_absences_actuelles = st.session_state["compteur_absences_strict"].get(cle_composite_verif, 0)
+    st.markdown("##### Informations Complémentaires (Enseignant & Enseignement)")
+    col_ens, col_mat = st.columns(2)
+    
+    with col_ens:
+        liste_nom_enseignants = sorted(list(DATA_ENSEIGNANTS.keys()))
+        index_par_defaut = liste_nom_enseignants.index("Bellebna") if "Bellebna" in liste_nom_enseignants else 0
+        enseignant_choisi = st.selectbox(
+            "Enseignant ayant déclaré l'absence :", 
+            liste_nom_enseignants, 
+            index=index_par_defaut
+        )
+        donnees_doc['enseignant'] = enseignant_choisi
+        
+    with col_mat:
+        liste_matieres_disponibles = sorted(DATA_ENSEIGNANTS[enseignant_choisi])
+        matiere_choisie = st.selectbox(
+            "Matière concernée :", 
+            liste_matieres_disponibles
+        )
+        donnees_doc['matiere'] = matiere_choisie
+
+    col_d1, col_d2, col_d3 = st.columns(3)
+    with col_d1:
+        donnees_doc['date_debut'] = st.date_input(
+            "Date de début de l'absence", 
+            datetime.date.today()
+        )
+    with col_d2:
+        donnees_doc['date_fin'] = st.date_input(
+            "Date de fin de l'absence", 
+            datetime.date.today()
+        )
+    with col_d3:
+        donnees_doc['date_edition'] = st.date_input(
+            "Date de délivrance (Justification)", 
+            datetime.date.today()
+        )
+
+    # Vérification et Verrouillage Strict Chronologique des dates
+    if donnees_doc['date_edition'] < donnees_doc['date_debut']:
+        verrou_dates_invalides = True
+        st.error("🚨 ERREUR CRITIQUE DE SAISIE : La date de délivrance de la justification ne peut pas être antérieure à la date de début de l'absence. Le système bloque la génération du document.")
+    
+    nom_etudiant_clean = donnees_doc['nom_prenom'].strip()
+    if nom_etudiant_clean and not verrou_dates_invalides:
+        cle_composite_verif = (nom_etudiant_clean, donnees_doc['enseignant'], donnees_doc['matiere'])
+        
+        # Sécurisation de l'accès au dictionnaire de session_state
+        if "compteur_absences_strict" not in st.session_state:
+            st.session_state["compteur_absences_strict"] = {}
             
-            if nb_absences_actuelles >= 5:
-                st.error(f"⚠️ ATTENTION CRITIQUE : L'étudiant '{nom_etudiant_clean}' compte déjà {nb_absences_actuelles} absences dans cette matière spécifique ({donnees_doc['matiere']}) avec Pr. {donnees_doc['enseignant']}. Il est déclaré EXCLU de ce cours.")
-            elif nb_absences_actuelles > 0:
-                st.warning(f"Note : Cet étudiant possède actuellement {nb_absences_actuelles} absence(s) enregistrée(s) pour ce cours précis.")
+        nb_absences_actuelles = st.session_state["compteur_absences_strict"].get(cle_composite_verif, 0)
+        
+        if nb_absences_actuelles >= 5:
+            st.error(f"⚠️ ATTENTION CRITIQUE : L'étudiant '{nom_etudiant_clean}' compte déjà {nb_absences_actuelles} absences dans cette matière spécifique ({donnees_doc['matiere']}) avec Pr. {donnees_doc['enseignant']}. Il est déclaré EXCLU de ce cours.")
+        elif nb_absences_actuelles > 0:
+            st.warning(f"Note : Cet étudiant possède actuellement {nb_absences_actuelles} absence(s) enregistrée(s) pour ce cours précis.")
 
-    else:
-        with st.form("form_autres"):
-            donnees_doc['date_creation'] = st.date_input("Date", datetime.now())
-            donnees_doc['contenu'] = st.text_area("Contenu textuel")
-            st.form_submit_button("Valider la saisie")
+else:
+    with st.form("form_autres"):
+        donnees_doc['date_creation'] = st.date_input("Date", datetime.date.today())
+        donnees_doc['contenu'] = st.text_area("Contenu textuel")
+        st.form_submit_button("Valider la saisie")
 
-    st.markdown("<br>", unsafe_allow_html=True)
+st.markdown("<br>", unsafe_allow_html=True)
 
     # ==========================================
     # GESTION DES ACTIONS FINALES & COMPILATION
