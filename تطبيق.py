@@ -791,17 +791,178 @@ with tab_formulaire:
         )
         donnees_doc['liste_pieces'] = df_edite.to_dict(orient="records")
 
-    # --- FORMULAIRE : JUSTIFICATION D'ABSENCE ---
-    elif doc_choisi == "Justification d'absence":
-        col_nom, col_annee = st.columns(2)
-        with col_nom:
-            donnees_doc['nom_prenom'] = st.text_input("Nom et prénom de l'étudiant(e) :", value="Benali Mohamed")
-        with col_annee:
-            donnees_doc['annee_etude'] = st.selectbox(
-                "Année d'étude (Ex: 1ère Année Master) :", 
-                LISTE_ANNEES_ETUDE, 
-                index=1
-            )
+    import os
+import urllib.parse
+import datetime
+import pandas as pd
+import streamlit as st
+
+# ==========================================
+# CHARGEMENT DE LA LISTE DES ÉTUDIANTS (ANTI-404)
+# ==========================================
+
+@st.cache_data
+def charger_liste_deroulante_etudiants(base_url_github, nom_fichier_excel):
+    """
+    Charge le fichier Excel des étudiants depuis GitHub ou en local.
+    Combine les colonnes 'Nom' et 'Prénom' pour générer une liste propre pour le selectbox.
+    """
+    liste_complete = []
+    df = None
+    
+    # 1. Tentative de lecture distante sur le dépôt GitHub
+    try:
+        nom_fichier_encode = urllib.parse.quote(nom_fichier_excel)
+        url_complete = f"{base_url_github}{nom_fichier_encode}"
+        df = pd.read_excel(url_complete)
+    except Exception:
+        df = None
+
+    # 2. Bascule de repli sur le fichier local si GitHub est inaccessible
+    if df is None and os.path.exists(nom_fichier_excel):
+        try:
+            df = pd.read_excel(nom_fichier_excel)
+        except Exception:
+            df = None
+
+    # 3. Extraction et combinaison des colonnes Nom et Prénom
+    if df is not None:
+        try:
+            # Nettoyage des espaces dans les noms de colonnes
+            df.columns = [str(col).strip() for col in df.columns]
+            
+            if "Nom" in df.columns and "Prénom" in df.columns:
+                # Création de la chaîne combinée "NOM Prénom"
+                df["Nom_Complet"] = (
+                    df["Nom"].astype(str).str.strip().str.upper() 
+                    + " " 
+                    + df["Prénom"].astype(str).str.strip()
+                )
+                # Filtrage des valeurs invalides ou vides
+                liste_complete = df["Nom_Complet"].dropna().unique().tolist()
+                liste_complete.sort()  # Tri alphabétique officiel
+        except Exception as e:
+            st.error(f"Erreur lors de la mise en forme des colonnes étudiantes : {str(e)}")
+
+    # 4. Base de secours structurelle stricte basée sur vos données réelles
+    if not liste_complete:
+        liste_complete = [
+            "YAHIAOUI Issam abdessamed",
+            "BOUAZZA HAMADOUCHE Mohamed ilyes",
+            "GHALI Bouazza",
+            "LOKMANE Mohammed mounir",
+            "NACERI Khadidja"
+        ]
+        liste_complete.sort()
+        
+    return liste_complete
+
+
+# ==========================================
+# CONFIGURATION DES VARIABLES GLOBALES
+# ==========================================
+URL_RACINE_GITHUB = "https://raw.githubusercontent.com/votre_compte/votre_depot/main/"
+NOM_FICHIER_ETUDIANTS = "Liste des étudiants_2025-2026.xlsx"
+
+# Chargement de la liste pour la liste déroulante
+LISTE_SELECTBOX_ETUDIANTS = charger_liste_deroulante_etudiants(URL_RACINE_GITHUB, NOM_FICHIER_ETUDIANTS)
+
+
+# ==========================================
+# --- FORMULAIRE : JUSTIFICATION D'ABSENCE ---
+# ==========================================
+if doc_choisi == "Justification d'absence":
+    col_nom, col_annee = st.columns(2)
+    
+    with col_nom:
+        # Remplacement du st.text_input par la liste déroulante dynamique demandée
+        donnees_doc['nom_prenom'] = st.selectbox(
+            "Nom et prénom de l'étudiant(e) :",
+            options=LISTE_SELECTBOX_ETUDIANTS,
+            help="Sélectionnez l'étudiant à partir de la liste officielle du fichier source."
+        )
+        
+    with col_annee:
+        donnees_doc['annee_etude'] = st.selectbox(
+            "Année d'étude (Ex: 1ère Année Master) :", 
+            LISTE_ANNEES_ETUDE, 
+            index=1
+        )
+        
+    col_spec, col_motif = st.columns(2)
+    with col_spec:
+        donnees_doc['specialite'] = st.selectbox(
+            "Spécialité / Option :", 
+            LISTE_SPECIALITES, 
+            index=0
+        )
+    with col_motif:
+        donnees_doc['motif_selectionne'] = st.selectbox(
+            "Motif réglementaire retenu :", 
+            MOTIFS_ABSENCE, 
+            index=0
+        )
+        
+    st.markdown("##### Informations Complémentaires (Enseignant & Enseignement)")
+    col_ens, col_mat = st.columns(2)
+    
+    with col_ens:
+        liste_nom_enseignants = sorted(list(DATA_ENSEIGNANTS.keys()))
+        index_par_defaut = liste_nom_enseignants.index("ABBAS") if "ABBAS" in liste_nom_enseignants else 0
+        enseignant_choisi = st.selectbox(
+            "Enseignant ayant déclaré l'absence :", 
+            liste_nom_enseignants, 
+            index=index_par_defaut
+        )
+        donnees_doc['enseignant'] = enseignant_choisi
+        
+    with col_mat:
+        liste_matieres_disponibles = sorted(DATA_ENSEIGNANTS[enseignant_choisi])
+        matiere_choisie = st.selectbox(
+            "Matière concernée :", 
+            liste_matieres_disponibles
+        )
+        donnees_doc['matiere'] = matiere_choisie
+
+    col_d1, col_d2, col_d3 = st.columns(3)
+    with col_d1:
+        donnees_doc['date_debut'] = st.date_input(
+            "Date de début de l'absence", 
+            datetime.date.today(),
+            key="justif_date_debut"
+        )
+    with col_d2:
+        donnees_doc['date_fin'] = st.date_input(
+            "Date de fin de l'absence", 
+            datetime.date.today(),
+            key="justif_date_fin"
+        )
+    with col_d3:
+        donnees_doc['date_edition'] = st.date_input(
+            "Date de délivrance (Justification)", 
+            datetime.date.today(),
+            key="justif_date_edition"
+        )
+
+    # Vérification et Verrouillage Strict Chronologique des dates
+    verrou_dates_invalides = False
+    if donnees_doc['date_edition'] < donnees_doc['date_debut']:
+        verrou_dates_invalides = True
+        st.error("🚨 ERREUR CRITIQUE DE SAISIE : La date de délivrance de la justification ne peut pas être antérieure à la date de début de l'absence. Le système bloque la génération du document.")
+    
+    nom_etudiant_clean = donnees_doc['nom_prenom'].strip()
+    if nom_etudiant_clean and not verrou_dates_invalides:
+        cle_composite_verif = (nom_etudiant_clean, donnees_doc['enseignant'], donnees_doc['matiere'])
+        
+        if "compteur_absences_strict" not in st.session_state:
+            st.session_state["compteur_absences_strict"] = {}
+            
+        nb_absences_actuelles = st.session_state["compteur_absences_strict"].get(cle_composite_verif, 0)
+        
+        if nb_absences_actuelles >= 5:
+            st.error(f"⚠️ ATTENTION CRITIQUE : L'étudiant '{nom_etudiant_clean}' compte déjà {nb_absences_actuelles} absences dans cette matière spécifique ({donnees_doc['matiere']}) avec Pr. {donnees_doc['enseignant']}. Il est déclaré EXCLU de ce cours.")
+        elif nb_absences_actuelles > 0:
+            st.warning(f"Note : Cet étudiant possède actuellement {nb_absences_actuelles} absence(s) enregistrée(s) pour ce cours précis.")
             
         col_spec, col_motif = st.columns(2)
         with col_spec:
