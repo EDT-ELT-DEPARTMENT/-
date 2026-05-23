@@ -159,7 +159,7 @@ def charger_base_enseignements(chemin_fichier):
 
 
 @st.cache_data
-def charger_Liste des étudiants_2025-2026.xlsx:
+def charger_liste_etudiants(url_github):
     """
     Charge la liste globale des étudiants depuis l'URL Raw de GitHub.
     Nettoie les données et prépare l'indexation par Nom et Prénom pour l'interface.
