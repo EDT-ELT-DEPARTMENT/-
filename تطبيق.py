@@ -140,7 +140,19 @@ def charger_base_enseignements(chemin_fichier):
         except Exception as e:
             st.error(f"Erreur lors de la lecture du fichier Excel source : {str(e)}")
             
-    
+    if not dict_enseignants:
+        dict_enseignants = {
+            "Zidi": ["Stabilité et dynamique des réseaux électriques (Cours-SDRE-RE)"],
+            "Bermaki": ["Éclairage LED: Principes et applications (Cours-LEDPA-RE)"],
+            "Touhami": ["Techniques d'intelligence artificielle (Cours-TIA-RE)"],
+            "BENHAMIDA": ["Intégration des ressources renouvelables aux réseaux électriques (Cours-IRRRE-RE)"],
+            "Rezoug": ["Dimensionnement des Réseaux électriques industriels (Cours-DREI-RE)"],
+            "Bellebna": ["Technique de la haute tension (Cours-THT-RE)"],
+            "Benhamida": ["Conduite des réseaux électriques (Cours-CdRE-RE)"],
+            "Maamar": ["Réseaux électriques intelligents (Cours-REI-RE)"]
+        }
+    return dict_enseignants
+
 DATA_ENSEIGNANTS = charger_base_enseignements(NOM_FICHIER_EXCEL)
 
 # ==========================================
