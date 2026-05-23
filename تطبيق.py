@@ -1043,6 +1043,127 @@ if doc_choisi == "Justification d'absence":
                 except Exception as error:
                     st.error(f"Échec de l'opération de génération : {str(error)}")
 
+    # =========================================================================
+    # --- FORMULAIRE CORRIGÉ : JUSTIFICATION D'ABSENCE (SÉCURISATION DES KEYS) ---
+    # =========================================================================
+    elif doc_choisi == "Justification d'absence":
+        col_nom, col_annee = st.columns(2)
+        
+        with col_nom:
+            # Ajout d'une clé unique pour la liste déroulante des étudiants
+            if LISTE_SELECTBOX_ETUDIANTS:
+                donnees_doc['nom_prenom'] = st.selectbox(
+                    "Nom et prénom de l'étudiant(e) :",
+                    options=LISTE_SELECTBOX_ETUDIANTS,
+                    key="justif_selectbox_etudiant_unique"
+                )
+            else:
+                donnees_doc['nom_prenom'] = st.text_input(
+                    "Nom et prénom de l'étudiant(e) :", 
+                    value="ABDEDDAIM Anfal",
+                    key="justif_text_etudiant_secours"
+                )
+            
+        with col_annee:
+            donnees_doc['annee_etude'] = st.selectbox(
+                "Année d'étude (Ex: 1ère Année Master) :", 
+                LISTE_ANNEES_ETUDE, 
+                index=4,  # Index adapté pour afficher "4ème Année" selon votre liste
+                key="justif_selectbox_annee_unique"
+            )
+            
+        col_spec, col_motif = st.columns(2)
+        with col_spec:
+            # SÉCURISATION DE LA LIGNE 969 : Ajout d'une clé d'identification unique obligatoire
+            donnees_doc['specialite'] = st.selectbox(
+                "Spécialité / Option :", 
+                LISTE_SPECIALITES, 
+                index=5,  # Index adapté pour pointer sur "Licence_ELT"
+                key="justif_selectbox_specialite_unique"
+            )
+        with col_motif:
+            donnees_doc['motif_selectionne'] = st.selectbox(
+                "Motif réglementaire retenu :", 
+                MOTIFS_ABSENCE, 
+                index=0,
+                key="justif_selectbox_motif_unique"
+            )
+            
+        st.markdown("##### Informations Complémentaires (Enseignant & Enseignement)")
+        col_ens, col_mat = st.columns(2)
+        
+        with col_ens:
+            liste_nom_enseignants = sorted(list(DATA_ENSEIGNANTS.keys()))
+            index_par_defaut = liste_nom_enseignants.index("ABBAS") if "ABBAS" in liste_nom_enseignants else 0
+            enseignant_choisi = st.selectbox(
+                "Enseignant ayant déclaré l'absence :", 
+                liste_nom_enseignants, 
+                index=index_par_defaut,
+                key="justif_selectbox_enseignant_unique"
+            )
+            donnees_doc['enseignant'] = enseignant_choisi
+            
+        with col_mat:
+            liste_matieres_disponibles = sorted(DATA_ENSEIGNANTS[enseignant_choisi])
+            
+            # Gestion de sécurité si la matière spécifique n'est pas encore synchronisée dans le dictionnaire
+            matiere_cible = "Cours-Construction des machines électriques (Cours-CME)"
+            if matiere_cible in liste_matieres_disponibles:
+                index_mat = liste_matieres_disponibles.index(matiere_cible)
+            else:
+                if liste_matieres_disponibles:
+                    index_mat = 0
+                else:
+                    liste_matieres_disponibles = [matiere_cible]
+                    index_mat = 0
+                    
+            matiere_choisie = st.selectbox(
+                "Matière concernée :", 
+                liste_matieres_disponibles,
+                index=index_mat,
+                key="justif_selectbox_matiere_unique"
+            )
+            donnees_doc['matiere'] = matiere_choisie
+    
+        col_d1, col_d2, col_d3 = st.columns(3)
+        with col_d1:
+            donnees_doc['date_debut'] = st.date_input(
+                "Date de début de l'absence", 
+                datetime.date.today(),
+                key="justif_date_debut_unique"
+            )
+        with col_d2:
+            donnees_doc['date_fin'] = st.date_input(
+                "Date de fin de l'absence", 
+                datetime.date.today(),
+                key="justif_date_fin_unique"
+            )
+        with col_d3:
+            donnees_doc['date_edition'] = st.date_input(
+                "Date de délivrance (Justification)", 
+                datetime.date.today(),
+                key="justif_date_edition_unique"
+            )
+    
+        # --- SÉCURITÉ CHRONOLOGIQUE ET COMPTEUR D'EXCLUSIONS ---
+        verrou_dates_invalides = False
+        if donnees_doc['date_edition'] < donnees_doc['date_debut']:
+            verrou_dates_invalides = True
+            st.error("🚨 ERREUR CRITIQUE DE SAISIE : La date de délivrance de la justification ne peut pas être antérieure à la date de début de l'absence. Le système bloque la génération du document.")
+        
+        nom_etudiant_clean = donnees_doc['nom_prenom'].strip()
+        if nom_etudiant_clean and not verrou_dates_invalides:
+            cle_composite_verif = (nom_etudiant_clean, donnees_doc['enseignant'], donnees_doc['matiere'])
+            
+            if "compteur_absences_strict" not in st.session_state:
+                st.session_state["compteur_absences_strict"] = {}
+                
+            nb_absences_actuelles = st.session_state["compteur_absences_strict"].get(cle_composite_verif, 0)
+            
+            if nb_absences_actuelles >= 5:
+                st.error(f"⚠️ ATTENTION CRITIQUE : L'étudiant(e) '{nom_etudiant_clean}' compte déjà {nb_absences_actuelles} absences dans cette matière spécifique ({donnees_doc['matiere']}) avec Pr. {donnees_doc['enseignant']}. Il/Elle est déclaré(e) EXCLU(E) de ce cours.")
+            elif nb_absences_actuelles > 0:
+                st.warning(f"Note : Cet étudiant(e) possède actuellement {nb_absences_actuelles} absence(s) enregistrée(s) pour ce cours précis.")
     elif doc_choisi == "Justification d'absence":
         # Le bouton de soumission est totalement inhibé ou rendu inactif si les dates sont incohérentes
         if verrou_dates_invalides:
