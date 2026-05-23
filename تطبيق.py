@@ -791,7 +791,7 @@ with tab_formulaire:
         )
         donnees_doc['liste_pieces'] = df_edite.to_dict(orient="records")
 
-    import os
+import os
 import urllib.parse
 import datetime
 import pandas as pd
