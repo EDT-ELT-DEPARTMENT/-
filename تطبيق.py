@@ -107,106 +107,53 @@ COLONNES_SUIVI_OFFICIELRES = [
     "Situation Réglementaire"
 ]
 
-# =========================================================================
-# CHARGEMENT ET TRAITEMENT DU FICHIER SOURCE EXCEL (BASE ENSEIGNEMENTS)
-# =========================================================================
-import os
-import urllib.parse
-import pandas as pd
-import streamlit as st
-
-# Base de données de repli initiale statique (isolée pour le cache Streamlit)
-BASE_INITIALE_ENSEIGNANTS = {
-    "Zidi": ["Stabilité et dynamique des réseaux électriques (Cours-SDRE-RE)"],
-    "Bermaki": ["Éclairage LED: Principes et applications (Cours-LEDPA-RE)"],
-    "Touhami": ["Techniques d'intelligence artificielle (Cours-TIA-RE)"],
-    "BENHAMIDA": ["Intégration des ressources renouvelables aux réseaux électriques (Cours-IRRRE-RE)"],
-    "Rezoug": ["Dimensionnement des Réseaux électriques industriels (Cours-DREI-RE)"],
-    "Bellebna": ["Technique de la haute tension (Cours-THT-RE)"],
-    "Benhamida": ["Conduite des réseaux électriques (Cours-CdRE-RE)"],
-    "Maamar": ["Réseaux électriques intelligents (Cours-REI-RE)"]
-}
-
+# ==========================================
+# CHARGEMENT ET TRAITEMENT DU FICHIER SOURCE EXCEL
+# ==========================================
 @st.cache_data
-def charger_base_enseignements(chemin_ou_url_fichier, base_url_github=None):
+def charger_base_enseignements(chemin_fichier):
     """
-    Charge le fichier Excel source (distant GitHub ou de repli local) et structure 
-    un dictionnaire indexé par Enseignant.
+    Charge le fichier Excel source et structure un dictionnaire indexé par Enseignant.
     La disposition originale est respectée : Enseignements, Code, Enseignants, Horaire, Jours, Lieu, Promotion.
     """
     dict_enseignants = {}
-    df = None
-    
-    # 1. Tentative de chargement via URL brute GitHub si une base URL est fournie
-    if base_url_github is not None:
+    if os.path.exists(chemin_fichier):
         try:
-            # Encodage sécurisé pour convertir les espaces et caractères spéciaux du nom de fichier
-            nom_fichier_propre = os.path.basename(chemin_ou_url_fichier)
-            nom_fichier_encode = urllib.parse.quote(nom_fichier_propre)
-            url_complete_github = f"{base_url_github}{nom_fichier_encode}"
+            df = pd.read_excel(chemin_fichier)
+            df.columns = [col.strip() for col in df.columns]
             
-            df = pd.read_excel(url_complete_github)
-        except Exception:
-            # Échec silencieux de l'accès distant pour passer immédiatement à l'analyse locale
-            df = None
-
-    # 2. Bascule automatique sur le fichier local si le chargement GitHub a échoué ou n'est pas configuré
-    if df is None:
-        # Extraction du nom brut au cas où un chemin complexe ou une URL brisée ait été transmis
-        nom_fichier_local = os.path.basename(chemin_ou_url_fichier)
-        
-        if os.path.exists(nom_fichier_local):
-            try:
-                df = pd.read_excel(nom_fichier_local)
-            except Exception as e:
-                st.error(f"Erreur lors de la lecture du fichier Excel local source : {str(e)}")
-        else:
-            if base_url_github is not None:
-                st.warning(f"Fichier distant introuvable (404) et copie locale '{nom_fichier_local}' absente.")
-
-    # 3. Traitement et structuration des données si un DataFrame a pu être extrait
-    if df is not None:
-        try:
-            df.columns = [str(col).strip() for col in df.columns]
-            
-            # Vérification stricte des colonnes indispensables de la disposition originale
             if "Enseignants" in df.columns and "Enseignements" in df.columns and "Code" in df.columns:
                 for _, row in df.iterrows():
                     nom_ens = str(row["Enseignants"]).strip()
                     matiere_nom = str(row["Enseignements"]).strip()
                     code_matiere = str(row["Code"]).strip()
                     
-                    # Filtrage des lignes vides ou contenant le texte résiduel d'une cellule NaN
                     if nom_ens and nom_ens != "nan" and matiere_nom and matiere_nom != "nan":
                         libelle_matiere = f"{matiere_nom} ({code_matiere})"
                         
                         if nom_ens not in dict_enseignants:
                             dict_enseignants[nom_ens] = []
-                            
                         if libelle_matiere not in dict_enseignants[nom_ens]:
                             dict_enseignants[nom_ens].append(libelle_matiere)
             else:
                 st.error("Format critique absent : Les colonnes 'Enseignants', 'Enseignements' ou 'Code' manquent dans le fichier Excel.")
-        
         except Exception as e:
-            st.error(f"Erreur lors du traitement des lignes du fichier Excel : {str(e)}")
+            st.error(f"Erreur lors de la lecture du fichier Excel source : {str(e)}")
             
-    # 4. Secours sur la base initiale du cahier des charges si aucun fichier n'est valide
     if not dict_enseignants:
-        # Duplication de la structure pour préserver l'intégrité de la mémoire cache de Streamlit
-        dict_enseignants = {cle: liste.copy() for cle, liste in BASE_INITIALE_ENSEIGNANTS.items()}
-        
+        dict_enseignants = {
+            "Zidi": ["Stabilité et dynamique des réseaux électriques (Cours-SDRE-RE)"],
+            "Bermaki": ["Éclairage LED: Principes et applications (Cours-LEDPA-RE)"],
+            "Touhami": ["Techniques d'intelligence artificielle (Cours-TIA-RE)"],
+            "BENHAMIDA": ["Intégration des ressources renouvelables aux réseaux électriques (Cours-IRRRE-RE)"],
+            "Rezoug": ["Dimensionnement des Réseaux électriques industriels (Cours-DREI-RE)"],
+            "Bellebna": ["Technique de la haute tension (Cours-THT-RE)"],
+            "Benhamida": ["Conduite des réseaux électriques (Cours-CdRE-RE)"],
+            "Maamar": ["Réseaux électriques intelligents (Cours-REI-RE)"]
+        }
     return dict_enseignants
 
-
-# --- INITIALISATION ET APPEL DE LA FONCTION ---
-
-# Base URL de votre dépôt GitHub (à adapter avec vos identifiants de dépôt)
-URL_RACINE_GITHUB = "https://raw.githubusercontent.com/votre_compte/votre_depot/main/"
-NOM_FICHIER_EXCEL = "Liste des enseignements_2025-2026.xlsx"
-
-# Chargement unifié avec le système anti-404
-DATA_ENSEIGNANTS = charger_base_enseignements(NOM_FICHIER_EXCEL, base_url_github=URL_RACINE_GITHUB)
+DATA_ENSEIGNANTS = charger_base_enseignements(NOM_FICHIER_EXCEL)
 
 # ==========================================
 # INITIALISATION DU SUIVI ET HISTORIQUE (SESSION STATE)
